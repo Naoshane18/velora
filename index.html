@@ -1829,8 +1829,16 @@ async function loadHotels(){
     hotels=(await getDocs(collection(db,"hotels"))).docs.map(d=>({id:d.id,...d.data()}));
     /* Tambahkan sembilan hotel bergambar HD tanpa menghapus data dari database. */
     const extraHotels=LOCAL_HOTELS.filter(h=>/^pic-00[1-9]$/.test(String(h.id))||/^pic-06[0-8]$/.test(String(h.id)));
-    const existingIds=new Set(hotels.map(h=>String(h.id)));
-    hotels=hotels.concat(extraHotels.filter(h=>!existingIds.has(String(h.id))));
+    /* Data lokal yang berisi foto unggahan terbaru harus mengalahkan dokumen lama
+       dengan ID sama, agar foto ilustrasi lama tidak menimpa foto asli pengguna. */
+    const localById=new Map(extraHotels.map(h=>[String(h.id),h]));
+    const seenIds=new Set();
+    hotels=hotels.map(h=>{
+      const id=String(h.id),local=localById.get(id);
+      seenIds.add(id);
+      return local?{...h,...local,id:h.id}:h;
+    });
+    hotels=hotels.concat(extraHotels.filter(h=>!seenIds.has(String(h.id))));
     renderHotels();renderAdminHotels();
   }catch(x){$("#hlist").innerHTML='<p class="err">'+esc(msg(x))+'</p>'}
 }
@@ -1843,7 +1851,11 @@ const POOL=HOTEL_PICS.concat(NEW_PICS,ROOM_PICS);const _bu={};
 function bu(i){i=+i;if(_bu[i])return _bu[i];var d=POOL[i];if(!d)return"";try{var p=d.indexOf(","),t=d.slice(5,p).split(";")[0],b=atob(d.slice(p+1)),u=new Uint8Array(b.length);for(var k=0;k<b.length;k++)u[k]=b.charCodeAt(k);return _bu[i]=URL.createObjectURL(new Blob([u],{type:t}))}catch(e){return _bu[i]=d}}
 function embIdx(h){var id=String(h.id),n=parseInt(id.replace(/\D/g,""),10)||0,N=POOL.length;if(id.indexOf("pic-")===0)return HOTEL_PICS.length+n-1;if(id.indexOf("local-")!==0)return"";var m=7;while(N%m===0)m+=2;return(n*m)%N}
 /* Foto HD (1600px) dari sumber online lebih dulu; kalau gagal dimuat, pakai foto bawaan di file ini */
-function pic(h){var i=embIdx(h);if(i!=="")return bu(i);return hd(h.photo||h.fb||"")}
+function pic(h){
+  /* Foto yang diunggah pengguna (data URI) selalu diprioritaskan. */
+  if(h&&typeof h.photo==="string"&&h.photo.indexOf("data:image/")===0)return h.photo;
+  var i=embIdx(h);if(i!=="")return bu(i);return hd(h.photo||h.fb||"")
+}
 function hd(u){if(!u)return u;
   u=u.replace(/(images\.unsplash\.com\/[^?]+)\?.*$/,"$1?w=1600&q=90&auto=format&fit=crop");
   u=u.replace(/loremflickr\.com\/\d+\/\d+\//,"loremflickr.com/1280/800/");
