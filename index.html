@@ -1011,6 +1011,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         <label for="atot">Total account balance (USD)</label><input id="atot" type="number" step="any" min="0">
         <label for="aav">Available balance (USD) · Admin only (set/reset)</label><input id="aav" type="number" step="any" min="0">
         <label for="aor">Orders amount (USD)</label><input id="aor" type="number" step="any" min="0">
+        <label for="acnt">Bookings used (Mission Control) · set 0 to reset</label><div class="row" style="margin:0;gap:8px"><input id="acnt" type="number" step="1" min="0" style="flex:1"><button type="button" class="btn g" id="acntreset" style="flex:none">Reset to 0</button></div>
         <div class="row"><button class="btn" id="accsave">Save account</button><button class="btn g" id="acccancel">Cancel</button></div>
         <p class="err" id="accerr"></p>
       </div>
@@ -1079,7 +1080,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
       <div class="dhead"><h2>Connect Every Stay.</h2><p class="mut">Booking workflow preview and commission calculator.</p><p class="mut" style="margin-top:10px;font-size:13px"><b>REAL MODE:</b> generated properties, prices and commissions are examples only. No live OTA connection or real booking is made.</p></div>
       <div class="card dplan">
         <div class="dplan-badge"></div>
-        <div class="dplan-txt"><b id="dplan">No plan</b><span>Daily Bookings Capacity: <b id="dcap">—</b></span></div>
+        <div class="dplan-txt"><b id="dplan">No plan</b><span>Bookings Capacity: <b id="dcap">—</b></span></div>
       </div>
       <div class="card dmc">
         <div class="eb">MISSION CONTROL</div>
@@ -2188,13 +2189,14 @@ $("#bsend").onclick=async()=>{
     const price=n*Number(cur.price),balance=await freshBookingBalance();
     if(!Number.isFinite(price)||price<=0)throw Error("Harga hotel tidak valid.");
     if(price>balance){$("#berr").textContent=bookingBalanceMessage(price,balance);return}
+    await loadAccount();{const lm=bookingLimitMsg();if(lm){$("#berr").textContent=lm;return}}
     await loadFsBookings();
     if(activeBooking(cur.id)){$("#berr").textContent="You already booked this hotel. Please wait for admin, or choose another hotel.";return}
     await refundDue();
     const bid=bkId(cur.id),wb=writeBatch(db);
     wb.set(doc(db,"bookings",bid),{uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,nights:n,total:price,status:"Menunggu",created:Date.now(),held:true,refunded:false});
     /* Saldo dipotong sebesar total booking; kembali otomatis setelah tanggal check-out */
-    wb.update(doc(db,"accounts",me.uid),{available:increment(-price),bkRef:bid});
+    wb.update(doc(db,"accounts",me.uid),{available:increment(-price),bkRef:bid,cCount:increment(1)});
     await wb.commit();
     myAcc.available=(Number(myAcc.available)||0)-price;await loadAccount();
     await loadFsBookings();renderHotels();
@@ -2226,6 +2228,15 @@ const Key=()=>`velora_orders_v2_${me?.uid||"guest"}`;
 let Orders=[],ordersPage=1;
 const money2=n=>Number(n||0).toLocaleString("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2});
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
+/* Kuota booking (kumulatif, tidak reset harian; hanya admin yang mereset) */
+function levelCap(){const lv=LV.find(x=>x[0].toLowerCase()===String(myAcc.level||"").trim().toLowerCase());return lv?lv[2]:0}
+const bkUsed=()=>Number(myAcc.cCount)||0;
+function bookingLimitMsg(){
+  const cap=levelCap();
+  if(!cap)return "You don't have an active plan yet. Please contact admin.";
+  if(bkUsed()>=cap)return "Booking limit reached ("+bkUsed()+"/"+cap+"). Please contact admin to reset your bookings.";
+  return "";
+}
 function commissionRate(){
  const lv=LV.find(x=>x[0].toLowerCase()===String(myAcc.level||"").trim().toLowerCase());
  return lv?lv[1]/100:0;
@@ -2258,7 +2269,7 @@ function fsOrders(){
   const h=(hotels||[]).find(x=>String(x.id)===String(b.hotelId))||{};
   const st=b.status==="Dikonfirmasi"?"COMPLETED":(b.status==="Dibatalkan"?"CANCELLED":"PENDING");
   const price=Number(b.total)||0;
-  return {id:"fs_"+b.id,hotelName:b.hotelName,location:h.location||"",provider:"",price,rate,commission:+(price*rate).toFixed(2),
+  return {id:"fs_"+b.id,hotelName:b.hotelName,location:h.location||"",provider:"",price,rate,commission:b.commissionPaid?Number(b.commission)||0:+(price*rate).toFixed(2),
    created:(st==="COMPLETED"&&b.confirmedAt)?b.confirmedAt:(b.created||0),checkin:b.checkin,checkout:b.checkout,status:st,
    image:h.fb||h.photo||pic(h),fb:h.fb||"",bookingNo:"VLR"+String(b.id).slice(0,9).toUpperCase()};
  });
@@ -2366,15 +2377,16 @@ async function loadUsers(){
     users=(await getDocs(collection(db,"users"))).docs.map(d=>({uid:d.id,...d.data()}));
     accs={};(await getDocs(collection(db,"accounts"))).docs.forEach(d=>accs[d.id]={...NOACC,...d.data()});
     $("#aulist").innerHTML=users.length?users.map(u=>{const a=accs[u.uid]||NOACC;
-      return `<div class="card pad"><h3>${esc(u.name)} <small class="mut">(@${esc(u.userid)})</small></h3><p class="mut">${esc(a.level||"No plan yet")} · Total ${money(a.total)} · Available ${money(a.available)} · Orders ${money(a.orders)}</p><div class="row"><button class="btn g" data-acc="${u.uid}">Edit account</button></div></div>`}).join(""):'<p class="mut">No users yet.</p>';
+      return `<div class="card pad"><h3>${esc(u.name)} <small class="mut">(@${esc(u.userid)})</small></h3><p class="mut">${esc(a.level||"No plan yet")} · Total ${money(a.total)} · Available ${money(a.available)} · Orders ${money(a.orders)} · Bookings used ${Number(a.cCount)||0}</p><div class="row"><button class="btn g" data-acc="${u.uid}">Edit account</button></div></div>`}).join(""):'<p class="mut">No users yet.</p>';
   }catch(x){$("#aulist").innerHTML='<p class="err">'+esc(msg(x))+'</p>'}
 }
+$("#acntreset").onclick=()=>{$("#acnt").value=0};
 $("#acccancel").onclick=()=>{accUid=null;$("#accform").hidden=true};
 $("#accsave").onclick=async()=>{
   if(!isAdmin()||!accUid)return;
   const n=i=>Number($(i).value||0);
-  const d={level:$("#alv").value.trim(),total:n("#atot"),available:n("#aav"),orders:n("#aor")};
-  if([d.total,d.available,d.orders].some(v=>!isFinite(v)||v<0))return $("#accerr").textContent="Invalid number.";
+  const d={level:$("#alv").value.trim(),total:n("#atot"),available:n("#aav"),orders:n("#aor"),cCount:Math.floor(n("#acnt"))};
+  if([d.total,d.available,d.orders,d.cCount].some(v=>!isFinite(v)||v<0))return $("#accerr").textContent="Invalid number.";
   try{await setDoc(doc(db,"accounts",accUid),d);$("#accform").hidden=true;accUid=null;loadUsers()}
   catch(x){$("#accerr").textContent=msg(x)}
 };
@@ -2419,16 +2431,16 @@ async function loadDashboard(){
  set("#dplan",lv?lv[0]:(String(myAcc.level||"").trim()||"No plan"));
  set("#dcap",cap||"—");set("#dmax",cap||0);
  // KPI harian: tanggal lokal pengguna. Data hari sebelumnya otomatis tidak dihitung.
- const todays=todaysBookingOrders();
+ const todays=todaysBookingOrders(),used=bkUsed();
  const earn=todays.reduce((sum,o)=>sum+(Number(o.commission)||((Number(o.price)||0)*rate)),0);
  const dailyAmount=todays.reduce((sum,o)=>sum+(Number(o.price)||0),0);
- set("#dcur",Math.min(todays.length,cap||todays.length));
- set("#dcomp",todays.length);
+ set("#dcur",used);
+ set("#dcomp",used);
  set("#dearn","+"+money2(earn));set("#dord",money2(dailyAmount));
  set("#dbal",money2(Number(myAcc.available)||0));
- const fill=$("#dfill");if(fill)fill.style.width=(cap?Math.min(100,Math.min(todays.length,cap)/cap*100):0)+"%";
- const full=cap>0&&todays.length>=cap,bd=$("#dbadge");
- if(bd){bd.textContent=full?"LIMIT REACHED":(todays.length?"IN PROGRESS":"READY");bd.classList.toggle("full",full)}
+ const fill=$("#dfill");if(fill)fill.style.width=(cap?Math.min(100,used/cap*100):0)+"%";
+ const full=!cap||used>=cap,bd=$("#dbadge");
+ if(bd){bd.textContent=!cap?"NO PLAN":(used>=cap?"LIMIT REACHED":(used?"IN PROGRESS":"READY"));bd.classList.toggle("full",full)}
 }
 
 
@@ -2634,7 +2646,7 @@ const _bokGot=$("#bok-got");if(_bokGot)_bokGot.onclick=()=>{showB("bflow-ok",fal
     if(Number(inp.value)>=90){
       inp.value=100;paint();
       const badge=$("#dbadge");
-      if(badge&&badge.classList.contains("full")){alert("Daily booking limit reached.");reset();return}
+      {const lm=bookingLimitMsg();if(lm){alert(lm);reset();return}}
       reset();nav("hotels");
     }else reset();
   });
@@ -2866,6 +2878,8 @@ document.addEventListener("click",async e=>{
       const balance=await freshBookingBalance();
       if(Number(cur.price)>balance){alert(bookingBalanceMessage(Number(cur.price),balance));return}
     }catch(x){alert("Saldo tidak dapat diverifikasi: "+msg(x));return}
+    try{await loadAccount()}catch(x){}
+    {const lm=bookingLimitMsg();if(lm){alert(lm);return}}
     await loadFsBookings();
     if(activeBooking(cur.id)){alert("You already booked this hotel. Your order is waiting for / confirmed by admin.");renderHotels();return}
     const today=isoDay(Date.now());
@@ -2882,7 +2896,7 @@ document.addEventListener("click",async e=>{
     $("#acctitle").textContent="Edit account @"+u.userid;{const sel=$("#alv"),lvl=String(a.level||"").trim();sel.querySelectorAll("option[data-legacy]").forEach(o=>o.remove());
       const hit=[...sel.options].find(o=>o.value.toLowerCase()===lvl.toLowerCase());
       if(hit)sel.value=hit.value;else if(lvl){const o=document.createElement("option");o.value=lvl;o.textContent=lvl+" (not in pricing)";o.dataset.legacy="1";sel.appendChild(o);sel.value=lvl}else sel.value=""}
-    $("#atot").value=a.total;$("#aav").value=a.available;$("#aor").value=a.orders;
+    $("#atot").value=a.total;$("#aav").value=a.available;$("#aor").value=a.orders;$("#acnt").value=Number(a.cCount)||0;
     $("#accerr").textContent="";$("#accform").hidden=false;$("#accform").scrollIntoView({behavior:"smooth"});
   }
   if(t.dataset.del&&confirm("Delete this hotel?")){try{const id=t.dataset.del;
@@ -2892,7 +2906,25 @@ document.addEventListener("click",async e=>{
       if(LOCAL_HOTELS.some(h=>String(h.id)===String(id)))await setDoc(doc(db,"hotels",id),{deleted:true,deletedAt:Date.now()});
       else await deleteDoc(doc(db,"hotels",id));
       await loadHotels()}catch(x){alert("Gagal menghapus hotel: "+msg(x))}}
-  if(t.dataset.st){await updateDoc(doc(db,"bookings",t.dataset.id),t.dataset.st==="Dikonfirmasi"?{status:t.dataset.st,confirmedAt:Date.now()}:{status:t.dataset.st});loadAllBookings()}
+  if(t.dataset.st){try{
+    /* Confirm: komisi (total x rate level user) ditambahkan ke Available Balance user.
+       Cancel booking yang komisinya sudah dibayar: komisi ditarik kembali. */
+    const ref=doc(db,"bookings",t.dataset.id),b=(await getDoc(ref)).data()||{},wb=writeBatch(db),accRef=doc(db,"accounts",b.uid);
+    if(t.dataset.st==="Dikonfirmasi"){
+      const a=(await getDoc(accRef)).data()||{};
+      const lv=LV.find(x=>x[0].toLowerCase()===String(a.level||"").trim().toLowerCase());
+      const c=+((Number(b.total)||0)*(lv?lv[1]/100:0)).toFixed(2);
+      const upd={status:"Dikonfirmasi",confirmedAt:Date.now()};
+      if(!b.commissionPaid&&c>0){upd.commission=c;upd.commissionPaid=true;wb.update(accRef,{available:increment(c)})}
+      wb.update(ref,upd);
+    }else{
+      const upd={status:t.dataset.st};
+      if(b.commissionPaid&&Number(b.commission)>0){upd.commissionPaid=false;wb.update(accRef,{available:increment(-Number(b.commission))})}
+      wb.update(ref,upd);
+    }
+    await wb.commit();
+  }catch(x){alert(msg(x))}
+  loadAllBookings()}
 });
 </script>
 <script>
