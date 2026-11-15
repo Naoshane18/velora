@@ -2251,10 +2251,19 @@ function makeOrder(i){
  const date=d=>d.toISOString().slice(0,10);
  return {id:String(i+1).padStart(4,"0"),hotelName:pick(HOTELS)+" — "+city[0],room:pick(ROOMS),location:city.join(", "),provider:pick(PROVIDERS),price,rate,commission:+(price*rate).toFixed(2),created,checkin:date(checkin),checkout:date(checkout),status:Math.random()>.12?"COMPLETED":"PENDING",image:pick(IMAGES),bookingNo:"VLR"+String(100000000+Math.floor(Math.random()*899999999))};
 }
+/* Kode booking unik per pesanan: VLR + 9 karakter, stabil untuk pesanan yang sama */
+function vlrCode(seed){
+ seed=String(seed);let h1=0x811c9dc5,h2=0x9747b28c;
+ for(let i=0;i<seed.length;i++){const c=seed.charCodeAt(i);h1=Math.imul(h1^c,16777619);h2=Math.imul(h2^c,1597334677)}
+ h1=Math.imul(h1^(h1>>>15),2246822507)>>>0;h2=Math.imul(h2^(h2>>>13),3266489909)>>>0;
+ const A="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let n=BigInt(h1)*4294967296n+BigInt(h2),o="";
+ for(let i=0;i<9;i++){o+=A[Number(n%32n)];n/=32n}
+ return "VLR"+o;
+}
 function ensureOrders(){
  try{
   const saved=JSON.parse(localStorage.getItem(Key())||"null");
-  if(Array.isArray(saved)){Orders=saved;return}
+  if(Array.isArray(saved)){Orders=saved;let ch=false;Orders.forEach(o=>{if(!/^VLR[A-Z0-9]{9}$/.test(String(o.bookingNo||""))){o.bookingNo=vlrCode("loc|"+o.id+"|"+(o.created||""));ch=true}});if(ch)saveOrders();return}
  }catch(e){}
  Orders=[];
  try{localStorage.setItem(Key(),JSON.stringify(Orders))}catch(e){}
@@ -2273,7 +2282,7 @@ function fsOrders(){
   const price=Number(b.total)||0;
   return {id:"fs_"+b.id,hotelName:b.hotelName,location:h.location||"",provider:"",price,rate,commission:b.commissionPaid?Number(b.commission)||0:+(price*rate).toFixed(2),
    created:(st==="COMPLETED"&&b.confirmedAt)?b.confirmedAt:(b.created||0),checkin:b.checkin,checkout:b.checkout,status:st,
-   image:h.fb||h.photo||pic(h),fb:h.fb||"",bookingNo:"VLR"+String(b.id).slice(0,9).toUpperCase()};
+   image:h.fb||h.photo||pic(h),fb:h.fb||"",bookingNo:b.code||vlrCode(b.id+"|"+(b.created||""))};
  });
 }
 function allOrders(){return fsOrders().concat(Orders).sort((a,b)=>(b.created||0)-(a.created||0))}
@@ -2459,8 +2468,8 @@ let bflow={hotel:null,provider:null,busy:false};
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 function showB(id,on){const e=$(id);if(e)e.hidden=!on}
 function rndBookingNo(){
-  const d=new Date();
-  return d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")+String(d.getHours()).padStart(2,"0")+String(d.getMinutes()).padStart(2,"0")+String(Math.floor(Math.random()*1e6)).padStart(6,"0");
+  let r="";try{const a=new Uint32Array(2);crypto.getRandomValues(a);r=a[0]+"-"+a[1]}catch(e){r=Math.random()+"-"+Math.random()}
+  return vlrCode(Date.now()+"|"+r);
 }
 function fmtTime(d){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0")+":"+String(d.getSeconds()).padStart(2,"0");
@@ -2596,7 +2605,7 @@ const _bpBook=$("#bp-book");if(_bpBook)_bpBook.onclick=async()=>{
    rate,commission:+(Number(bflow.hotel.price)*rate).toFixed(2),
    created:Date.now(),checkin:new Date(Date.now()+86400000).toISOString().slice(0,10),
    checkout:new Date(Date.now()+2*86400000).toISOString().slice(0,10),
-   status:"SAMPLE",image:bflow.hotel.img,bookingNo:rndBookingNo()
+   status:"SAMPLE",image:bflow.hotel.img,bookingNo:(/^VLR/.test($("#bh-num").textContent)?$("#bh-num").textContent:rndBookingNo())
   };
   let isNewBooking=true;
   if(bflow.orderId){
