@@ -863,6 +863,33 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
   .foot{padding-bottom:calc(40px + 96px + env(safe-area-inset-bottom,0px))}
 }
 </style>
+<style id="hxstyle">
+#v-history #hislist{display:block}
+.hx-sum{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:6px 0 14px}
+.hx-sum div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.hx-sum small{display:block;font:700 11px ui-monospace,Menlo,monospace;letter-spacing:.12em;color:var(--mut)}
+.hx-sum b{display:block;font:800 18px Outfit;margin-top:4px}
+.hx-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.hx-tabs::-webkit-scrollbar{display:none}
+.hx-tab{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 14px inherit;padding:9px 16px;border-radius:999px;cursor:pointer}
+.hx-tab.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.hx-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+.hx-head select{width:auto;margin:0;padding:8px 10px;font-size:13px}
+.hx-row{display:flex;align-items:center;gap:12px;padding:14px 2px;border-top:1px solid var(--line)}
+.hx-ic{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center}
+.hx-ic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.hx-ic.booking{background:#eef2ff;color:#3b6cf0}.hx-ic.commission{background:#ecfdf5;color:#16a34a}
+.hx-ic.deposit{background:#f0f9ff;color:#0284c7}.hx-ic.withdraw{background:#fff7ed;color:#ea580c}
+.hx-mid{flex:1;min-width:0}
+.hx-mid b{display:block;font-size:15px}
+.hx-mid small{display:block;color:var(--mut);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hx-amt{text-align:right;flex:none}
+.hx-amt b{display:block;font-size:15px}
+.hx-amt b.pos{color:#16a34a}.hx-amt b.neg{color:#dc2626}
+.hx-st{display:inline-block;margin-top:4px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#f1f5f9;color:#475569}
+.hx-st.success{background:#dcfce7;color:#15803d}.hx-st.pending{background:#fef9c3;color:#a16207}.hx-st.failed{background:#fee2e2;color:#b91c1c}
+@media(min-width:900px){.hx-sum{grid-template-columns:repeat(4,1fr)}}
+</style>
 </head>
 <body>
 <div id="topbar"></div>
@@ -1041,7 +1068,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         <button class="lc" data-go="wallet"><i><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M16 15h2"/></svg></i><b>Wallet</b><span>Manage your balance and payment details.</span></button>
         <button class="lc" data-go="addfunds"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></i><b>Add funds</b><span>Top up your wallet.</span></button>
         <button class="lc" data-go="withdraw"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></i><b>Withdraw</b><span>Request a withdrawal to your bank card.</span></button>
-        <button class="lc" data-go="history"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></i><b>History</b><span>View deposits, withdrawals, and transactions.</span></button>
+        <button class="lc" data-go="history"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></i><b>History</b><span>Bookings, commissions, top ups and withdrawals.</span></button>
         <button class="lc" data-go="orders"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></i><b>Orders</b><span>View and rate your orders.</span></button>
         <button class="lc" data-go="editprofile"><i><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg></i><b>Profile</b><span>Edit your details and password.</span></button>
         <button class="lc" data-go="support"><i><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 7l9 6 9-6"/></svg></i><b>Support</b><span>Chat with our team anytime.</span></button>
@@ -1190,14 +1217,21 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
       </div>
     </section>
     <section id="v-history" hidden>
-      <div class="eyebrow wl-eb">TRACK YOUR EARNINGS AND TRANSACTIONS</div>
-      <h2>Wallet History</h2>
-      <div class="card pad">
-        <div class="two" style="margin:0"><div><label for="hty" style="margin-top:0">Type</label><select id="hty"><option value="">All Types</option><option value="deposit">Add funds</option><option value="withdraw">Withdrawal</option></select></div>
-        <div><label for="hst" style="margin-top:0">Status</label><select id="hst"><option value="">All Status</option><option value="Menunggu">Pending</option><option value="Disetujui">Approved</option><option value="Ditolak">Rejected</option></select></div></div>
-        <button type="button" class="btn w" id="hfilter">FILTER TRANSACTIONS</button>
+      <div class="eyebrow wl-eb">TRACK YOUR BOOKINGS, EARNINGS AND TRANSACTIONS</div>
+      <h2>History</h2>
+      <div class="hx-sum" id="hxsum"></div>
+      <div class="hx-tabs" role="tablist" id="hxtabs">
+        <button type="button" class="hx-tab on" data-hx="">All</button>
+        <button type="button" class="hx-tab" data-hx="booking">Booking</button>
+        <button type="button" class="hx-tab" data-hx="commission">Commission</button>
+        <button type="button" class="hx-tab" data-hx="deposit">Top Up</button>
+        <button type="button" class="hx-tab" data-hx="withdraw">Withdraw</button>
       </div>
-      <div class="card pad"><div class="wl-lbl">TRANSACTIONS</div><div id="hislist"></div></div>
+      <div class="card pad">
+        <div class="hx-head"><div class="wl-lbl">TRANSACTIONS</div>
+          <select id="hst" aria-label="Status"><option value="">All Status</option><option value="pending">Pending</option><option value="success">Completed / Approved</option><option value="failed">Rejected / Cancelled</option></select></div>
+        <div id="hislist"></div>
+      </div>
     </section>
     <section id="v-support" hidden>
       <div class="bghead" data-bg2="2"><h2>Support</h2></div>
@@ -2569,7 +2603,7 @@ function fillWallet(){
   const sel=$("#xacc"),keep=sel.value;
   sel.innerHTML='<option value="">Select account</option>'+Object.keys(m).map(k=>`<option value="${k}">${PMN[k]} · ${esc(wlLast4(m[k]))}</option>`).join("");
   sel.value=m[keep]?keep:"";
-  wlTx().then(l=>{$("#wact").innerHTML=l.length?l.slice(0,3).map(wlRow).join(""):'<p class="mut">No activity yet</p>'});
+  hxItems().then(l=>{$("#wact").innerHTML=l.length?l.slice(0,3).map(hxRow).join(""):'<p class="mut">No activity yet</p>'});
 }
 let bindK=null;
 function openBind(k){
@@ -2615,12 +2649,66 @@ $("#xsend").onclick=async()=>{
   $("#xpass").value="";
   newTx("withdraw","#xamt","#xerr",{method:k,bank:m.bank||PMN[k],holder:m.holder||"",number:m.number});
 };
-async function loadHistory(){
-  const ty=$("#hty").value,st=$("#hst").value;
-  let l=await wlTx();if(ty)l=l.filter(t=>t.type===ty);if(st)l=l.filter(t=>t.status===st);
-  $("#hislist").innerHTML=l.length?l.map(wlRow).join(""):'<div class="emp"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7"/></svg></i><b>No Transactions</b><p class="mut">Your wallet activity will appear here.</p></div>';
+/* ---------- History: booking, commission, top up, withdraw ---------- */
+const HXI={
+ booking:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>',
+ commission:'<svg viewBox="0 0 24 24"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>',
+ deposit:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+ withdraw:'<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>'
+};
+const HXN={booking:"Booking",commission:"Commission",deposit:"Top Up",withdraw:"Withdraw"};
+const HXS={pending:"Pending",success:"Completed",failed:"Cancelled"};
+let hxType="";
+function hxTxStatus(s){return s==="Disetujui"?"success":(s==="Ditolak"?"failed":"pending")}
+async function hxItems(){
+ const out=[];
+ try{ensureOrders()}catch(e){}
+ try{await loadFsBookings()}catch(e){}
+ let orders=[];try{orders=allOrders()}catch(e){}
+ orders.forEach(o=>{
+  const S=String(o.status||"").toUpperCase();
+  const isFs=String(o.id).indexOf("fs_")===0;
+  const st=S==="CANCELLED"?"failed":(S==="PENDING"?"pending":"success");
+  const lbl=S==="CANCELLED"?"Cancelled":(S==="PENDING"?"Pending":(S==="COMPLETED"?"Completed":"Booked"));
+  const sub=[o.hotelName,o.bookingNo].filter(Boolean).join(" · ");
+  out.push({kind:"booking",title:"Booking",sub,created:o.created||0,amount:Number(o.price)||0,sign:0,st,lbl});
+  const c=Number(o.commission)||0;
+  if(c>0&&st!=="failed"&&(!isFs||S==="COMPLETED"))
+   out.push({kind:"commission",title:"Commission",sub:(o.hotelName||"")+(o.rate?" · "+(+(o.rate*100).toFixed(2))+"%":""),created:o.created||0,amount:c,sign:1,st:"success",lbl:"Credited"});
+ });
+ let tx=[];try{tx=await wlTx()}catch(e){}
+ tx.forEach(t=>{
+  if(t.type!=="deposit"&&t.type!=="withdraw")return;
+  const st=hxTxStatus(t.status);
+  const sub=t.type==="withdraw"?[t.bank,t.number?"•••• "+String(t.number).slice(-4):""].filter(Boolean).join(" · "):"Available balance";
+  out.push({kind:t.type,title:HXN[t.type],sub,created:t.created||0,amount:Number(t.amount)||0,sign:t.type==="deposit"?1:-1,st,lbl:stl(t.status)});
+ });
+ return out.sort((a,b)=>(b.created||0)-(a.created||0));
 }
-$("#hfilter").onclick=loadHistory;
+function hxRow(i){
+ const sg=i.sign>0?"+":(i.sign<0?"−":"");
+ const cls=i.sign>0&&i.st!=="failed"?"pos":(i.sign<0&&i.st!=="failed"?"neg":"");
+ return `<div class="hx-row"><div class="hx-ic ${i.kind}">${HXI[i.kind]}</div><div class="hx-mid"><b>${esc(i.title)}</b><small>${esc(i.sub||"")}</small><small>${i.created?fmt(i.created):""}</small></div><div class="hx-amt"><b class="${cls}">${sg}${money2(i.amount)}</b><span class="hx-st ${i.st}">${esc(i.lbl||HXS[i.st])}</span></div></div>`;
+}
+let hxAll=[];
+function hxRender(){
+ const st=$("#hst").value;
+ let l=hxAll;if(hxType)l=l.filter(i=>i.kind===hxType);if(st)l=l.filter(i=>i.st===st);
+ $("#hislist").innerHTML=l.length?l.map(hxRow).join(""):'<div class="emp"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7"/></svg></i><b>No History</b><p class="mut">Your bookings, commissions, top ups and withdrawals will appear here.</p></div>';
+}
+function hxSummary(){
+ const sum=k=>hxAll.filter(i=>i.kind===k&&i.st==="success").reduce((a,i)=>a+i.amount,0);
+ const nb=hxAll.filter(i=>i.kind==="booking").length;
+ $("#hxsum").innerHTML=`<div><small>BOOKINGS</small><b>${nb}</b></div><div><small>COMMISSION</small><b style="color:#16a34a">+${money2(sum("commission"))}</b></div><div><small>TOP UP</small><b>${money2(sum("deposit"))}</b></div><div><small>WITHDRAW</small><b>${money2(sum("withdraw"))}</b></div>`;
+}
+async function loadHistory(){
+ $("#hislist").innerHTML='<p class="mut">Loading…</p>';
+ hxAll=await hxItems();hxSummary();hxRender();
+}
+document.querySelectorAll("#hxtabs .hx-tab").forEach(b=>b.addEventListener("click",()=>{
+ hxType=b.dataset.hx;document.querySelectorAll("#hxtabs .hx-tab").forEach(x=>x.classList.toggle("on",x===b));hxRender();
+}));
+$("#hst").addEventListener("change",hxRender);
 function fillEdit(){
   const shown=(profile.name&&profile.name.trim())||profile.userid||me.email||"";
   $("#enm").value=profile.name||"";$("#eid").textContent="@"+profile.userid+" · "+me.email;$("#eerr").textContent="";$("#eperr").textContent="";
@@ -2885,7 +2973,23 @@ var Tawk_LoadStart = new Date();
 (function(){
 var LG=[["en","\uD83C\uDDFA\uD83C\uDDF8","English","EN"],["de","\uD83C\uDDE9\uD83C\uDDEA","Deutsch","DE"],["it","\uD83C\uDDEE\uD83C\uDDF9","Italiano","IT"],["fr","\uD83C\uDDEB\uD83C\uDDF7","Fran\u00e7ais","FR"],["nl","\uD83C\uDDF3\uD83C\uDDF1","Nederlands","NL"]];
 /* Format: English ~ Deutsch | Italiano | Fran\u00e7ais | Nederlands */
-var RAW=`Log in~Anmelden|Accedi|Se connecter|Inloggen
+var RAW=`All~Alle|Tutti|Tout|Alles
+Booking~Buchung|Prenotazione|R\u00e9servation|Boeking
+Top Up~Aufladen|Ricarica|Recharge|Opwaarderen
+Completed~Abgeschlossen|Completato|Termin\u00e9|Voltooid
+Cancelled~Storniert|Annullato|Annul\u00e9|Geannuleerd
+Credited~Gutgeschrieben|Accreditato|Cr\u00e9dit\u00e9|Bijgeschreven
+Booked~Gebucht|Prenotato|R\u00e9serv\u00e9|Geboekt
+No History~Kein Verlauf|Nessuna cronologia|Aucun historique|Geen geschiedenis
+BOOKINGS~BUCHUNGEN|PRENOTAZIONI|R\u00c9SERVATIONS|BOEKINGEN
+COMMISSION~PROVISION|COMMISSIONE|COMMISSION|COMMISSIE
+TOP UP~AUFLADEN|RICARICA|RECHARGE|OPWAARDEREN
+Completed / Approved~Abgeschlossen / Genehmigt|Completato / Approvato|Termin\u00e9 / Approuv\u00e9|Voltooid / Goedgekeurd
+Rejected / Cancelled~Abgelehnt / Storniert|Rifiutato / Annullato|Refus\u00e9 / Annul\u00e9|Afgewezen / Geannuleerd
+Bookings, commissions, top ups and withdrawals.~Buchungen, Provisionen, Aufladungen und Auszahlungen.|Prenotazioni, commissioni, ricariche e prelievi.|R\u00e9servations, commissions, recharges et retraits.|Boekingen, commissies, opwaarderingen en opnames.
+TRACK YOUR BOOKINGS, EARNINGS AND TRANSACTIONS~VERFOLGEN SIE BUCHUNGEN, EINNAHMEN UND TRANSAKTIONEN|MONITORA PRENOTAZIONI, GUADAGNI E TRANSAZIONI|SUIVEZ VOS R\u00c9SERVATIONS, GAINS ET TRANSACTIONS|VOLG UW BOEKINGEN, INKOMSTEN EN TRANSACTIES
+Your bookings, commissions, top ups and withdrawals will appear here.~Ihre Buchungen, Provisionen, Aufladungen und Auszahlungen erscheinen hier.|Le tue prenotazioni, commissioni, ricariche e prelievi appariranno qui.|Vos r\u00e9servations, commissions, recharges et retraits appara\u00eetront ici.|Uw boekingen, commissies, opwaarderingen en opnames verschijnen hier.
+Log in~Anmelden|Accedi|Se connecter|Inloggen
 Create account~Konto erstellen|Crea account|Cr\u00e9er un compte|Account aanmaken
 Log in to browse hotels and book rooms.~Melden Sie sich an, um Hotels zu durchsuchen und Zimmer zu buchen.|Accedi per cercare hotel e prenotare camere.|Connectez-vous pour parcourir les h\u00f4tels et r\u00e9server des chambres.|Log in om hotels te bekijken en kamers te boeken.
 Create an account to browse hotels and book rooms.~Erstellen Sie ein Konto, um Hotels zu durchsuchen und Zimmer zu buchen.|Crea un account per cercare hotel e prenotare camere.|Cr\u00e9ez un compte pour parcourir les h\u00f4tels et r\u00e9server des chambres.|Maak een account aan om hotels te bekijken en kamers te boeken.
