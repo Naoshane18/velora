@@ -1252,7 +1252,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         </div>
         <h3>Chat with our team</h3>
         <p>Get assistance from our support team directly through live chat.</p>
-        <button class="btn w velora-livechat-button" id="tawkStart" type="button">
+        <button class="btn w velora-livechat-button" id="veloraChatStart" type="button">
           START LIVE CHAT <span aria-hidden="true">→</span>
         </button>
         <p class="velora-livechat-note">A support conversation will open in a secure chat window.</p>
@@ -2985,7 +2985,7 @@ t.style.gap="16px"})();
   var ready = false;
   var openWhenReady = false;
   var statusEl = document.getElementById('veloraTawkStatus');
-  var startBtn = document.getElementById('tawkStart');
+  var startBtn = document.getElementById('veloraChatStart');
 
   window.Tawk_API = window.Tawk_API || {};
 
@@ -2997,6 +2997,7 @@ t.style.gap="16px"})();
   }
 
   function openSupportChat(){
+    if (failed && !ready) { window.open(DIRECT_CHAT, '_blank', 'noopener'); return; }
     document.body.classList.add('velora-tawk-open');
     if (ready && typeof window.Tawk_API.showWidget === 'function'
         && typeof window.Tawk_API.maximize === 'function') {
@@ -3010,6 +3011,19 @@ t.style.gap="16px"})();
       }
     }
   }
+
+  var DIRECT_CHAT = 'https://tawk.to/chat/6af166a90fa26e3c41c62857/1k6vfi275';
+  var failed = false;
+  setTimeout(function(){
+    if (ready) return;
+    failed = true;
+    if (statusEl) statusEl.textContent = 'LIVE CHAT';
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.innerHTML = 'START LIVE CHAT <span aria-hidden="true">→</span>';
+    }
+    if (openWhenReady) { openWhenReady = false; window.open(DIRECT_CHAT, '_blank', 'noopener'); }
+  }, 12000);
 
   /* Hide before the third-party widget is downloaded or rendered. */
   document.body.classList.remove('velora-tawk-open');
@@ -3040,6 +3054,10 @@ t.style.gap="16px"})();
   window.Tawk_API.onChatEnded = closeFloatingChat;
 
   if (startBtn) startBtn.addEventListener('click', openSupportChat);
+  /* Tutup jendela chat saat pengguna pindah dari halaman Support */
+  var sup = document.getElementById('v-support');
+  if (sup) new MutationObserver(function(){ if (sup.hidden) closeFloatingChat(); })
+    .observe(sup, {attributes:true, attributeFilter:['hidden']});
 
   /* Re-hide any launcher elements inserted asynchronously while the page is closed. */
   var observer = new MutationObserver(function(){
