@@ -1718,7 +1718,7 @@ function show(v){
   if(!window.__pre){const sec=$("#v-"+v);if(sec){sec.classList.remove("vin");void sec.offsetWidth;sec.classList.add("vin")}}
   if(window.__pre){window.__pre=false}else scrollTo(0,0);
   if(v==="orders")loadOrders();
-  if(v==="hotels"){renderHotels();loadHotels()}
+  if(v==="hotels"){renderHotels();loadHotels();loadFsBookings().then(renderHotels)}
   if(v==="profile")loadAccount();
   if(v==="dashboard")loadDashboard();
 
@@ -2098,7 +2098,7 @@ const wikiIO=new IntersectionObserver(es=>es.forEach(async e=>{
 function renderHotels(){
   const q=$("#search").value.toLowerCase();
   const l=hotels.filter(h=>((h.name||"")+" "+(h.location||"")).toLowerCase().includes(q));
-  $("#hlist").innerHTML=l.length?l.map(h=>`<div class="card hc"><img src="${esc(pic(h))}" data-id="${esc(String(h.id))}" data-pi="${h.pi!=null?h.pi:''}" decoding="async" data-hn="${String(h.id).startsWith('local-')?esc(h.name):''}" data-hl="${esc(h.location)}" alt="${esc(h.name)}" loading="lazy" data-fb="${esc(h.fb||'')}" data-emb="${embIdx(h)}"><div class="pad"><h3>${esc(h.name)}</h3><p class="mut">${esc(h.location)}</p><p style="margin-top:8px">${esc(h.desc)}</p><div class="row"><b>${money(h.price)} <small class="mut">/ night</small></b><button class="btn" data-book="${h.id}">Book</button></div></div></div>`).join(""):'<p class="mut">No matching hotels found.</p>';
+  $("#hlist").innerHTML=l.length?l.map(h=>`<div class="card hc"><img src="${esc(pic(h))}" data-id="${esc(String(h.id))}" data-pi="${h.pi!=null?h.pi:''}" decoding="async" data-hn="${String(h.id).startsWith('local-')?esc(h.name):''}" data-hl="${esc(h.location)}" alt="${esc(h.name)}" loading="lazy" data-fb="${esc(h.fb||'')}" data-emb="${embIdx(h)}"><div class="pad"><h3>${esc(h.name)}</h3><p class="mut">${esc(h.location)}</p><p style="margin-top:8px">${esc(h.desc)}</p><div class="row"><b>${money(h.price)} <small class="mut">/ night</small></b>${me&&activeBooking(h.id)?`<button class="btn g" disabled style="opacity:.6;cursor:not-allowed">Booked</button>`:`<button class="btn" data-book="${h.id}">Book</button>`}</div></div></div>`).join(""):'<p class="mut">No matching hotels found.</p>';
   /* Foto tetap stabil: tidak diganti otomatis saat di-scroll */
 }
 $("#search").oninput=renderHotels;
@@ -2134,10 +2134,23 @@ function bookingBalanceMessage(price,balance){
   return "Booking tidak dapat dilanjutkan. Total harga hotel "+money(price)+
     " melebihi Available Balance "+money(balance)+". Silakan pilih hotel yang lebih murah atau hubungi admin.";
 }
+/* Booking aktif (Pending/Confirmed) per hotel: pengunjung tidak bisa booking hotel yang sama lagi */
+const bkId=hid=>me.uid+"_"+String(hid).replace(/[\/]/g,"-");
+function activeBooking(hid){return (FsBk||[]).find(b=>String(b.hotelId)===String(hid)&&b.status!=="Dibatalkan")}
+const isoDay=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
+const addDays=(v,n)=>{const d=new Date(v+"T00:00:00");d.setDate(d.getDate()+n);return isoDay(d)};
+const maxNights=()=>cur&&Number(cur.price)>0?Math.floor((Number(myAcc.available)||0)/Number(cur.price)):0;
+function syncDates(){
+ const ci=$("#ci").value,mx=maxNights();
+ if(!ci)return;
+ $("#co").min=addDays(ci,1);$("#co").max=mx>0?addDays(ci,mx):"";
+ if($("#co").value&&($("#co").value<=ci||(mx>0&&$("#co").value>addDays(ci,mx))))$("#co").value=addDays(ci,Math.min(1,mx)||1);
+}
 const nights=()=>{const n=Math.round((new Date($("#co").value)-new Date($("#ci").value))/864e5);return n>0?n:0};
 function total(){
- const n=nights(),cost=n&&cur?n*Number(cur.price):0;
- $("#tot").textContent=n?`${n} night${n>1?"s":""} · ${money(cost)} (Available Balance: ${money(myAcc.available)})`:"";
+ syncDates();
+ const n=nights(),cost=n&&cur?n*Number(cur.price):0,mx=maxNights();
+ $("#tot").textContent=(n?`${n} night${n>1?"s":""} · ${money(cost)} · `:"")+`Available Balance: ${money(myAcc.available)} · Max ${mx} night${mx===1?"":"s"}`;
  const err=$("#berr");
  if(err)err.textContent=n&&cost>Number(myAcc.available)?bookingBalanceMessage(cost,Number(myAcc.available)):"";
  const btn=$("#bsend");if(btn)btn.disabled=!!(n&&cost>Number(myAcc.available));
@@ -2151,7 +2164,10 @@ $("#bsend").onclick=async()=>{
     const price=n*Number(cur.price),balance=await freshBookingBalance();
     if(!Number.isFinite(price)||price<=0)throw Error("Harga hotel tidak valid.");
     if(price>balance){$("#berr").textContent=bookingBalanceMessage(price,balance);return}
-    await addDoc(collection(db,"bookings"),{uid:me.uid,userid:profile.userid,name:profile.name,hotelId:cur.id,hotelName:cur.name,checkin:$("#ci").value,checkout:$("#co").value,nights:n,total:price,status:"Menunggu",created:Date.now()});
+    await loadFsBookings();
+    if(activeBooking(cur.id)){$("#berr").textContent="You already booked this hotel. Please wait for admin, or choose another hotel.";return}
+    await setDoc(doc(db,"bookings",bkId(cur.id)),{uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,nights:n,total:price,status:"Menunggu",created:Date.now()});
+    await loadFsBookings();renderHotels();
     $("#dlg").close();nav("orders");
   }catch(x){$("#berr").textContent=msg(x)}
   finally{btn.disabled=false}
@@ -2813,8 +2829,11 @@ document.addEventListener("click",async e=>{
       const balance=await freshBookingBalance();
       if(Number(cur.price)>balance){alert(bookingBalanceMessage(Number(cur.price),balance));return}
     }catch(x){alert("Saldo tidak dapat diverifikasi: "+msg(x));return}
-    $("#bname").textContent=cur.name;$("#ci").min=new Date().toISOString().slice(0,10);
-    $("#ci").value=$("#co").value="";$("#tot").textContent="";$("#berr").textContent="";$("#bsend").disabled=false;$("#dlg").showModal();
+    await loadFsBookings();
+    if(activeBooking(cur.id)){alert("You already booked this hotel. Your order is waiting for / confirmed by admin.");renderHotels();return}
+    const today=isoDay(Date.now());
+    $("#bname").textContent=cur.name;$("#ci").min=today;
+    $("#ci").value=today;$("#co").value=addDays(today,1);$("#berr").textContent="";$("#bsend").disabled=false;total();$("#dlg").showModal();
   }
   if(t.dataset.edit){
     const h=hotels.find(x=>x.id===t.dataset.edit);editId=h.id;
