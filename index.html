@@ -1948,6 +1948,9 @@ async function loadHotels(){
       return local?{...h,...local,id:h.id}:h;
     });
     hotels=hotels.concat(extraHotels.filter(h=>!seenIds.has(String(h.id))));
+    /* Hotel yang sudah dihapus admin ditandai deleted:true di database,
+       supaya hotel bawaan (LOCAL_HOTELS) tidak muncul lagi setelah dihapus. */
+    hotels=hotels.filter(h=>!h.deleted);
     renderHotels();renderAdminHotels();
   }catch(x){$("#hlist").innerHTML='<p class="err">'+esc(msg(x))+'</p>'}
 }
@@ -2594,7 +2597,13 @@ document.addEventListener("click",async e=>{
     $("#atot").value=a.total;$("#aav").value=a.available;$("#aor").value=a.orders;
     $("#accerr").textContent="";$("#accform").hidden=false;$("#accform").scrollIntoView({behavior:"smooth"});
   }
-  if(t.dataset.del&&confirm("Delete this hotel?")){await deleteDoc(doc(db,"hotels",t.dataset.del));loadHotels()}
+  if(t.dataset.del&&confirm("Delete this hotel?")){try{const id=t.dataset.del;
+      /* Hotel buatan admin (ada di database saja) dihapus permanen.
+         Hotel bawaan yang tertulis di kode (LOCAL_HOTELS) tidak bisa dihapus dari database,
+         jadi ditandai deleted:true agar tidak tampil lagi. */
+      if(LOCAL_HOTELS.some(h=>String(h.id)===String(id)))await setDoc(doc(db,"hotels",id),{deleted:true,deletedAt:Date.now()});
+      else await deleteDoc(doc(db,"hotels",id));
+      await loadHotels()}catch(x){alert("Gagal menghapus hotel: "+msg(x))}}
   if(t.dataset.st){await updateDoc(doc(db,"bookings",t.dataset.id),t.dataset.st==="Dikonfirmasi"?{status:t.dataset.st,confirmedAt:Date.now()}:{status:t.dataset.st});loadAllBookings()}
 });
 </script>
