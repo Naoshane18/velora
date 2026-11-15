@@ -1731,15 +1731,21 @@ async function loadAccount(){
   try{const d=await getDoc(doc(db,"accounts",me.uid));if(d.exists())a={...NOACC,...d.data()}}catch(x){}
   if(!isAdmin()){const extra=unsettledPrev(FsBk);if(extra>0)a={...a,available:+((Number(a.available)||0)+extra).toFixed(2)}}
   myAcc=a;
+  /* Profil & Wallet: Orders Amount = booking di-approve hari ini (jam New York),
+     Total Account Balance = Available Balance + Orders Amount + Today's Commission */
+  let dayOrd=0,dayCom=0;
+  if(!isAdmin()){const td=todayDaily(FsBk);dayOrd=td.reduce((s,b)=>s+(Number(b.total)||0),0);dayCom=td.reduce((s,b)=>s+bkCom(b),0)}
+  else{dayOrd=Number(a.orders)||0}
+  const totalBal=isAdmin()?(Number(a.total)||0):+((Number(a.available)||0)+dayOrd+dayCom).toFixed(2);
   const shown=(profile.name&&profile.name.trim())||profile.userid||me.email;
   $("#pname").textContent=shown;
   $("#pav").textContent=String(shown||"?").charAt(0).toUpperCase();
   $("#plevel").textContent=a.level||"No plan yet";
-  $("#ptotal").textContent=money(a.total);$("#pavail").textContent=money(a.available);$("#porders").textContent=money(a.orders);
-  try{localStorage.setItem("velora_cache",JSON.stringify({n:shown,l:a.level||"",t:a.total,a:a.available,o:a.orders,adm:!!isAdmin()}))}catch(x){}
+  $("#ptotal").textContent=money(totalBal);$("#pavail").textContent=money(a.available);$("#porders").textContent=money(dayOrd);
+  try{localStorage.setItem("velora_cache",JSON.stringify({n:shown,l:a.level||"",t:totalBal,a:a.available,o:dayOrd,adm:!!isAdmin()}))}catch(x){}
   const set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
-  set("#dbal",money(a.available));set("#dord",money(a.orders));
-  set("#wtotal",money(a.total));set("#wavail",money(a.available));set("#xavail",money(a.available));
+  set("#dbal",money(a.available));set("#dord",money(dayOrd));
+  set("#wtotal",money(totalBal));set("#wavail",money(a.available));set("#xavail",money(a.available));
   const po=profile.payout;set("#xbank",po&&po.number?`${po.bank} · •••• ${po.number.slice(-4)}`:"Not set (add it in Wallet)");
 }
 
