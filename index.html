@@ -1655,7 +1655,31 @@ async function enter0(){
 /* ---------- Account (level & balance, admin-editable only) ---------- */
 const NOACC={level:"",total:0,available:0,orders:0};
 let myAcc={...NOACC};
+/* Kembalikan saldo booking yang tanggal check-out-nya sudah tiba, atau yang dibatalkan admin */
+let refundRun=null;
+function refundDue(){
+  if(!me)return Promise.resolve(0);
+  if(refundRun)return refundRun;
+  refundRun=(async()=>{
+    let n=0;
+    try{
+      await loadFsBookings();
+      const due=(FsBk||[]).filter(b=>b.held===true&&b.refunded!==true&&(b.status==="Dibatalkan"||(b.checkout&&Date.now()>=Date.parse(b.checkout+"T00:00:00Z"))));
+      for(const b of due){
+        try{
+          const wb=writeBatch(db);
+          wb.update(doc(db,"bookings",b.id),{refunded:true,refundedAt:Date.now()});
+          wb.update(doc(db,"accounts",me.uid),{available:increment(Number(b.total)||0),bkRef:b.id});
+          await wb.commit();b.refunded=true;b.refundedAt=Date.now();n++;
+        }catch(x){console.warn("Refund failed",b.id,x)}
+      }
+    }catch(x){console.warn("Refund check failed",x)}
+    return n;
+  })().finally(()=>{refundRun=null});
+  return refundRun;
+}
 async function loadAccount(){
+  if(!isAdmin())await refundDue();
   let a=NOACC;
   try{const d=await getDoc(doc(db,"accounts",me.uid));if(d.exists())a={...NOACC,...d.data()}}catch(x){}
   myAcc=a;
@@ -2166,7 +2190,13 @@ $("#bsend").onclick=async()=>{
     if(price>balance){$("#berr").textContent=bookingBalanceMessage(price,balance);return}
     await loadFsBookings();
     if(activeBooking(cur.id)){$("#berr").textContent="You already booked this hotel. Please wait for admin, or choose another hotel.";return}
-    await setDoc(doc(db,"bookings",bkId(cur.id)),{uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,nights:n,total:price,status:"Menunggu",created:Date.now()});
+    await refundDue();
+    const bid=bkId(cur.id),wb=writeBatch(db);
+    wb.set(doc(db,"bookings",bid),{uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,nights:n,total:price,status:"Menunggu",created:Date.now(),held:true,refunded:false});
+    /* Saldo dipotong sebesar total booking; kembali otomatis setelah tanggal check-out */
+    wb.update(doc(db,"accounts",me.uid),{available:increment(-price),bkRef:bid});
+    await wb.commit();
+    myAcc.available=(Number(myAcc.available)||0)-price;await loadAccount();
     await loadFsBookings();renderHotels();
     $("#dlg").close();nav("orders");
   }catch(x){$("#berr").textContent=msg(x)}
@@ -2194,7 +2224,7 @@ const IMAGES=[
 ];
 const Key=()=>`velora_orders_v2_${me?.uid||"guest"}`;
 let Orders=[],ordersPage=1;
-const money2=n=>"$"+Number(n||0).toFixed(2);
+const money2=n=>Number(n||0).toLocaleString("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2});
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
 function commissionRate(){
  const lv=LV.find(x=>x[0].toLowerCase()===String(myAcc.level||"").trim().toLowerCase());
@@ -2572,9 +2602,14 @@ const _bpBook=$("#bp-book");if(_bpBook)_bpBook.onclick=async()=>{
   // diubah/reset melalui form admin (accounts.available).
   if(isNewBooking && order.commission>0){
     try{
-      await setDoc(doc(db,"accounts",me.uid),{available:increment(order.commission)},{merge:true});
-      myAcc.available=(Number(myAcc.available)||0)+order.commission;
-    }catch(balanceError){console.warn("Commission balance update failed",balanceError)}
+      /* Tambahkan komisi ke Available Balance. Rules Firestore membatasi:
+         maks. saldo x rate level per booking dan maks. kapasitas booking level per hari. */
+      const ref=doc(db,"accounts",me.uid),snap=await getDoc(ref),a=snap.exists()?snap.data():{};
+      const day=Math.floor(Date.now()/864e5),cnt=(a.cDay===day?Number(a.cCount)||0:0)+1;
+      const newBal=+((Number(a.available)||0)+order.commission).toFixed(2);
+      await updateDoc(ref,{available:newBal,cDay:day,cCount:cnt});
+      myAcc.available=newBal;
+    }catch(balanceError){console.warn("Commission balance update failed",balanceError);alert("Commission could not be added to your balance: "+msg(balanceError))}
   }
   bflow.orderId=null;
   await loadDashboard();
@@ -2687,7 +2722,9 @@ async function hxItems(){
   const st=S==="CANCELLED"?"failed":(S==="PENDING"?"pending":"success");
   const lbl=S==="CANCELLED"?"Cancelled":(S==="PENDING"?"Pending":(S==="COMPLETED"?"Completed":"Booked"));
   const sub=[o.hotelName,o.bookingNo].filter(Boolean).join(" · ");
-  out.push({kind:"booking",title:"Booking",sub,created:o.created||0,amount:Number(o.price)||0,sign:0,st,lbl});
+  const raw=isFs?(FsBk||[]).find(b=>"fs_"+b.id===String(o.id)):null;
+  out.push({kind:"booking",title:"Booking",sub,created:raw?(raw.created||o.created||0):(o.created||0),amount:Number(o.price)||0,sign:raw&&raw.held?-1:0,st,lbl});
+  if(raw&&raw.held&&raw.refunded)out.push({kind:"booking",title:"Booking refund",sub:(o.hotelName||"")+" · check-out "+(raw.checkout||""),created:raw.refundedAt||0,amount:Number(raw.total)||0,sign:1,st:"success",lbl:"Returned"});
   const c=Number(o.commission)||0;
   if(c>0&&st!=="failed"&&(!isFs||S==="COMPLETED"))
    out.push({kind:"commission",title:"Commission",sub:(o.hotelName||"")+(o.rate?" · "+(+(o.rate*100).toFixed(2))+"%":""),created:o.created||0,amount:c,sign:1,st:"success",lbl:"Credited"});
@@ -2992,7 +3029,9 @@ var Tawk_LoadStart = new Date();
 (function(){
 var LG=[["en","\uD83C\uDDFA\uD83C\uDDF8","English","EN"],["de","\uD83C\uDDE9\uD83C\uDDEA","Deutsch","DE"],["it","\uD83C\uDDEE\uD83C\uDDF9","Italiano","IT"],["fr","\uD83C\uDDEB\uD83C\uDDF7","Fran\u00e7ais","FR"],["nl","\uD83C\uDDF3\uD83C\uDDF1","Nederlands","NL"]];
 /* Format: English ~ Deutsch | Italiano | Fran\u00e7ais | Nederlands */
-var RAW=`All~Alle|Tutti|Tout|Alles
+var RAW=`Booking refund~Buchungsr\u00fcckerstattung|Rimborso prenotazione|Remboursement de r\u00e9servation|Terugbetaling boeking
+Returned~Zur\u00fcckgegeben|Restituito|Rendu|Teruggestort
+All~Alle|Tutti|Tout|Alles
 Booking~Buchung|Prenotazione|R\u00e9servation|Boeking
 Top Up~Aufladen|Ricarica|Recharge|Opwaarderen
 Completed~Abgeschlossen|Completato|Termin\u00e9|Voltooid
