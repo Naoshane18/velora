@@ -2084,16 +2084,43 @@ $("#hlist").addEventListener("error",function(e){
 },true);
 
 /* ---------- Room booking ---------- */
+// Semua pemeriksaan harga menggunakan saldo terbaru dari Firestore, bukan cache browser.
+// Validasi pada browser ini perlu dipasangkan dengan aturan backend untuk keamanan produksi.
+async function freshBookingBalance(){
+  if(!me)throw Error("Silakan login untuk melakukan booking.");
+  const snapshot=await getDoc(doc(db,"accounts",me.uid));
+  const value=snapshot.exists()?Number(snapshot.data().available):0;
+  if(!Number.isFinite(value)||value<0)throw Error("Available Balance tidak valid. Hubungi admin.");
+  myAcc.available=value;
+  const bal=$("#dbal");if(bal)bal.textContent=money(value);
+  const prof=$("#pavail");if(prof)prof.textContent=money(value);
+  return value;
+}
+function bookingBalanceMessage(price,balance){
+  return "Booking tidak dapat dilanjutkan. Total harga hotel "+money(price)+
+    " melebihi Available Balance "+money(balance)+". Silakan pilih hotel yang lebih murah atau hubungi admin.";
+}
 const nights=()=>{const n=Math.round((new Date($("#co").value)-new Date($("#ci").value))/864e5);return n>0?n:0};
-function total(){const n=nights();$("#tot").textContent=n?`${n} night${n>1?"s":""} · ${money(n*cur.price)}`:""}
+function total(){
+ const n=nights(),cost=n&&cur?n*Number(cur.price):0;
+ $("#tot").textContent=n?`${n} night${n>1?"s":""} · ${money(cost)} (Available Balance: ${money(myAcc.available)})`:"";
+ const err=$("#berr");
+ if(err)err.textContent=n&&cost>Number(myAcc.available)?bookingBalanceMessage(cost,Number(myAcc.available)):"";
+ const btn=$("#bsend");if(btn)btn.disabled=!!(n&&cost>Number(myAcc.available));
+}
 $("#ci").onchange=$("#co").onchange=total;
 $("#bcancel").onclick=()=>$("#dlg").close();
 $("#bsend").onclick=async()=>{
   const n=nights();if(!n)return $("#berr").textContent="Check-out must be after check-in.";
+  const btn=$("#bsend");btn.disabled=true;
   try{
-    await addDoc(collection(db,"bookings"),{uid:me.uid,userid:profile.userid,name:profile.name,hotelId:cur.id,hotelName:cur.name,checkin:$("#ci").value,checkout:$("#co").value,nights:n,total:n*cur.price,status:"Menunggu",created:Date.now()});
+    const price=n*Number(cur.price),balance=await freshBookingBalance();
+    if(!Number.isFinite(price)||price<=0)throw Error("Harga hotel tidak valid.");
+    if(price>balance){$("#berr").textContent=bookingBalanceMessage(price,balance);return}
+    await addDoc(collection(db,"bookings"),{uid:me.uid,userid:profile.userid,name:profile.name,hotelId:cur.id,hotelName:cur.name,checkin:$("#ci").value,checkout:$("#co").value,nights:n,total:price,status:"Menunggu",created:Date.now()});
     $("#dlg").close();nav("orders");
   }catch(x){$("#berr").textContent=msg(x)}
+  finally{btn.disabled=false}
 };
 const rate=b=>b.status!=="Dikonfirmasi"?"":`<div class="row" style="justify-content:flex-start;gap:4px"><span class="mut">Rating:</span>${[1,2,3,4,5].map(n=>`<button class="btn g" style="padding:6px 10px${(b.rating||0)>=n?";color:#f5a623":""}" data-rate="${n}" data-id="${b.id}">★</button>`).join("")}</div>`;
 const bk=(b,adm)=>`<div class="card pad"><div class="row" style="margin:0"><h3>${esc(b.hotelName)}</h3><span class="st">${esc(stl(b.status))}</span></div><p class="mut">${esc(b.checkin)} → ${esc(b.checkout)} · ${b.nights} night${b.nights>1?"s":""}</p><b>${money(b.total)}</b>${adm?`<p class="mut">${esc(b.name)} (@${esc(b.userid)})</p><div class="row"><button class="btn" data-st="Dikonfirmasi" data-id="${b.id}">Confirm</button><button class="btn r" data-st="Dibatalkan" data-id="${b.id}">Cancel</button></div>`:rate(b)}</div>`;
@@ -2362,6 +2389,10 @@ function openOrder(orderId){
 
 async function runBookFlow(){
   if(bflow.busy)return;
+  let balance;
+  try{balance=await freshBookingBalance()}
+  catch(x){alert("Saldo tidak dapat diverifikasi: "+msg(x));return}
+  if(balance<=0){alert("Available Balance Anda $0.00. Hubungi admin sebelum booking.");return}
   const badge=$("#dbadge");
   if(badge&&badge.classList.contains("full")){alert("Daily booking limit reached.");return}
   bflow.busy=true;
@@ -2376,8 +2407,11 @@ async function runBookFlow(){
 
   // Dalam satu hari, setiap user hanya boleh memilih hotel yang berbeda.
   const usedToday=new Set(todaysBookingOrders().map(o=>String(o.hotelName||"").trim().toLowerCase()));
-  const availableHotels=HOTEL_POOL.filter(h=>!usedToday.has(String(h.name||"").trim().toLowerCase()));
-  if(!availableHotels.length){bflow.busy=false;alert("Semua hotel yang tersedia sudah pernah dibooking hari ini. Silakan coba lagi besok.");return}
+  const availableHotels=HOTEL_POOL.filter(h=>
+    !usedToday.has(String(h.name||"").trim().toLowerCase()) &&
+    Number.isFinite(Number(h.price)) && Number(h.price)>0 && Number(h.price)<=balance
+  );
+  if(!availableHotels.length){bflow.busy=false;alert("Tidak ada hotel yang belum dibooking hari ini dengan harga di bawah atau sama dengan Available Balance "+money(balance)+".");return}
   const h=availableHotels[Math.floor(Math.random()*availableHotels.length)];
   bflow.hotel=h;
   const now=new Date();
@@ -2427,6 +2461,12 @@ const _bhNext=$("#bh-next");if(_bhNext)_bhNext.onclick=()=>{
       document.querySelectorAll("#bp-list .prov-row").forEach(x=>x.classList.remove("on"));
       el.classList.add("on");
       bflow.provider={...options[i],price:+el.dataset.price};
+      if(bflow.provider.price>Number(myAcc.available)){
+        $("#bp-book").disabled=true;
+        $("#bp-refund").textContent="Saldo tidak cukup";
+        $("#bp-comm").textContent=bookingBalanceMessage(bflow.provider.price,Number(myAcc.available));
+        return;
+      }
       $("#bp-refund").textContent=money2(bflow._refund||bflow.hotel.price);
       const comm=+(bflow.hotel.price*commissionRate()).toFixed(2);
       const lv=LV.find(x=>x[0].toLowerCase()===String(myAcc.level||"").trim().toLowerCase());
@@ -2440,7 +2480,13 @@ const _bhNext=$("#bh-next");if(_bhNext)_bhNext.onclick=()=>{
 const _bpBack=$("#bp-back");if(_bpBack)_bpBack.onclick=()=>{showB("bflow-prov",false);showB("bflow-hotel",true)};
 
 const _bpBook=$("#bp-book");if(_bpBook)_bpBook.onclick=async()=>{
-  if(!bflow.provider)return;
+  if(!bflow.provider||!bflow.hotel)return;
+  // Verifikasi ulang saldo saat konfirmasi; saldo dapat berubah setelah hotel dipilih.
+  let balance;
+  try{balance=await freshBookingBalance()}
+  catch(x){alert("Saldo tidak dapat diverifikasi: "+msg(x));return}
+  const finalPrice=Math.max(Number(bflow.hotel.price)||0,Number(bflow.provider.price)||0);
+  if(finalPrice<=0||finalPrice>balance){alert(bookingBalanceMessage(finalPrice,balance));return}
   showB("bflow-prov",false);
   showB("bflow-load",true);
   $("#bflow-load-txt").textContent="RUNNING LOCAL FOR "+bflow.provider.name.toUpperCase()+"…";
@@ -2673,9 +2719,14 @@ document.addEventListener("click",async e=>{
     }
   }
   if(t.dataset.book){
-    cur=hotels.find(h=>h.id===t.dataset.book);
+    cur=hotels.find(h=>String(h.id)===String(t.dataset.book));
+    if(!cur)return;
+    try{
+      const balance=await freshBookingBalance();
+      if(Number(cur.price)>balance){alert(bookingBalanceMessage(Number(cur.price),balance));return}
+    }catch(x){alert("Saldo tidak dapat diverifikasi: "+msg(x));return}
     $("#bname").textContent=cur.name;$("#ci").min=new Date().toISOString().slice(0,10);
-    $("#ci").value=$("#co").value="";$("#tot").textContent="";$("#berr").textContent="";$("#dlg").showModal();
+    $("#ci").value=$("#co").value="";$("#tot").textContent="";$("#berr").textContent="";$("#bsend").disabled=false;$("#dlg").showModal();
   }
   if(t.dataset.edit){
     const h=hotels.find(x=>x.id===t.dataset.edit);editId=h.id;
