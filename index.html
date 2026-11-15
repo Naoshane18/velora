@@ -3365,5 +3365,52 @@ function init(){build();document.documentElement.lang=cur;walk(document.body);
 if(document.readyState=="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
 </script>
+<style>
+.vp-hide{display:none!important}
+.vpager{display:flex;flex-direction:column;align-items:center;gap:10px;margin:18px 0 8px;grid-column:1/-1}
+.vpager[hidden]{display:none}
+.vpager .vp-row{display:flex;gap:8px;align-items:center;max-width:100%;overflow-x:auto;padding:4px 2px;scrollbar-width:none}
+.vpager .vp-row::-webkit-scrollbar{display:none}
+.vpager button{flex:0 0 auto;border:1px solid #d6dbe6;background:#fff;color:#1d2433;border-radius:999px;padding:9px 15px;font:700 13px Outfit,system-ui,sans-serif;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+.vpager button.on{background:var(--blue,#3b6cf0);border-color:var(--blue,#3b6cf0);color:#fff}
+.vpager button:disabled{opacity:.4;cursor:default}
+</style>
+<script>
+/* Hotel list dibagi per Part, 10 hotel setiap Part (tampilan & data asli tidak diubah) */
+(function(){
+  var SIZE=10;
+  function setup(listSel,searchSel){
+    var box=document.querySelector(listSel);if(!box)return;
+    var page=1,nav=document.createElement("nav");
+    nav.className="vpager";nav.hidden=true;nav.setAttribute("aria-label","Hotel parts");
+    box.parentNode.insertBefore(nav,box.nextSibling);
+    function items(){return [].filter.call(box.children,function(c){return !c.classList.contains("err")})}
+    function apply(){
+      var it=items(),n=it.length,pages=Math.ceil(n/SIZE)||1;
+      if(page>pages)page=pages;if(page<1)page=1;
+      it.forEach(function(c,i){c.classList.toggle("vp-hide",n>SIZE&&(i<(page-1)*SIZE||i>=page*SIZE))});
+      if(n<=SIZE){nav.hidden=true;nav.innerHTML="";return}
+      var h='<div class="vp-row">';
+      h+='<button type="button" data-vp="'+(page-1)+'"'+(page===1?" disabled":"")+'>‹ Prev</button>';
+      for(var p=1;p<=pages;p++)h+='<button type="button" data-vp="'+p+'"'+(p===page?' class="on" aria-current="page"':"")+'>Part '+p+'</button>';
+      h+='<button type="button" data-vp="'+(page+1)+'"'+(page===pages?" disabled":"")+'>Next ›</button></div>';
+      nav.innerHTML=h;nav.hidden=false;
+      var on=nav.querySelector("button.on");if(on&&on.scrollIntoView)try{on.scrollIntoView({block:"nearest",inline:"center"})}catch(e){}
+    }
+    nav.addEventListener("click",function(e){
+      var t=e.target.closest("[data-vp]");if(!t||t.disabled)return;
+      page=+t.dataset.vp;apply();
+      var top=box.getBoundingClientRect().top+window.pageYOffset-100;
+      window.scrollTo({top:top<0?0:top,behavior:"smooth"});
+    });
+    new MutationObserver(apply).observe(box,{childList:true});
+    var s=document.querySelector(searchSel);
+    if(s)s.addEventListener("input",function(){page=1;apply()});
+    apply();
+  }
+  function init(){setup("#hlist","#search");setup("#ahlist","#ahsearch")}
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+})();
+</script>
 </body>
 </html>
