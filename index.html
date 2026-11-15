@@ -3367,11 +3367,11 @@ if(document.readyState=="loading")document.addEventListener("DOMContentLoaded",i
 </script>
 <style>
 .vp-hide{display:none!important}
-.vpager{display:flex;flex-direction:column;align-items:center;gap:10px;margin:18px 0 8px;grid-column:1/-1}
-.vpager[hidden]{display:none}
-.vpager .vp-row{display:flex;gap:8px;align-items:center;max-width:100%;overflow-x:auto;padding:4px 2px;scrollbar-width:none}
+.vpager{position:static!important;display:flex;flex-direction:column;align-items:center;margin:18px 0 8px;padding:0;background:none;z-index:auto;grid-column:1/-1}
+.vpager[hidden]{display:none!important}
+.vpager .vp-row{display:flex;gap:8px;align-items:center;max-width:100%;overflow-x:auto;padding:4px 2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .vpager .vp-row::-webkit-scrollbar{display:none}
-.vpager button{flex:0 0 auto;border:1px solid #d6dbe6;background:#fff;color:#1d2433;border-radius:999px;padding:9px 15px;font:700 13px Outfit,system-ui,sans-serif;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
+.vpager button{flex:0 0 auto;border:1px solid #d6dbe6;background:#fff;color:#1d2433;border-radius:999px;padding:9px 15px;margin:0;font:700 13px Outfit,system-ui,sans-serif;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,border-color .15s}
 .vpager button.on{background:var(--blue,#3b6cf0);border-color:var(--blue,#3b6cf0);color:#fff}
 .vpager button:disabled{opacity:.4;cursor:default}
 </style>
@@ -3379,36 +3379,59 @@ if(document.readyState=="loading")document.addEventListener("DOMContentLoaded",i
 /* Hotel list dibagi per Part, 10 hotel setiap Part (tampilan & data asli tidak diubah) */
 (function(){
   var SIZE=10;
+  function toTop(){
+    try{window.scrollTo({top:0,left:0,behavior:"instant"})}catch(e){window.scrollTo(0,0)}
+    document.documentElement.scrollTop=0;if(document.body)document.body.scrollTop=0;
+  }
   function setup(listSel,searchSel){
-    var box=document.querySelector(listSel);if(!box)return;
-    var page=1,nav=document.createElement("nav");
-    nav.className="vpager";nav.hidden=true;nav.setAttribute("aria-label","Hotel parts");
-    box.parentNode.insertBefore(nav,box.nextSibling);
+    var box=document.querySelector(listSel);if(!box)return null;
+    var page=1,pager=document.createElement("div");
+    pager.className="vpager";pager.hidden=true;pager.setAttribute("role","navigation");pager.setAttribute("aria-label","Hotel parts");
+    box.parentNode.insertBefore(pager,box.nextSibling);
     function items(){return [].filter.call(box.children,function(c){return !c.classList.contains("err")})}
     function apply(){
       var it=items(),n=it.length,pages=Math.ceil(n/SIZE)||1;
       if(page>pages)page=pages;if(page<1)page=1;
       it.forEach(function(c,i){c.classList.toggle("vp-hide",n>SIZE&&(i<(page-1)*SIZE||i>=page*SIZE))});
-      if(n<=SIZE){nav.hidden=true;nav.innerHTML="";return}
+      if(n<=SIZE){pager.hidden=true;pager.innerHTML="";return}
       var h='<div class="vp-row">';
       h+='<button type="button" data-vp="'+(page-1)+'"'+(page===1?" disabled":"")+'>‹ Prev</button>';
       for(var p=1;p<=pages;p++)h+='<button type="button" data-vp="'+p+'"'+(p===page?' class="on" aria-current="page"':"")+'>Part '+p+'</button>';
       h+='<button type="button" data-vp="'+(page+1)+'"'+(page===pages?" disabled":"")+'>Next ›</button></div>';
-      nav.innerHTML=h;nav.hidden=false;
-      var on=nav.querySelector("button.on");if(on&&on.scrollIntoView)try{on.scrollIntoView({block:"nearest",inline:"center"})}catch(e){}
+      pager.innerHTML=h;pager.hidden=false;
+      var row=pager.firstChild,on=pager.querySelector("button.on");
+      if(row&&on)row.scrollLeft=on.offsetLeft-(row.clientWidth-on.offsetWidth)/2;
     }
-    nav.addEventListener("click",function(e){
+    pager.addEventListener("click",function(e){
       var t=e.target.closest("[data-vp]");if(!t||t.disabled)return;
       page=+t.dataset.vp;apply();
-      var top=box.getBoundingClientRect().top+window.pageYOffset-100;
+      var top=box.getBoundingClientRect().top+window.pageYOffset-110;
       window.scrollTo({top:top<0?0:top,behavior:"smooth"});
     });
     new MutationObserver(apply).observe(box,{childList:true});
     var s=document.querySelector(searchSel);
     if(s)s.addEventListener("input",function(){page=1;apply()});
     apply();
+    return {reset:function(){page=1;apply()}};
   }
-  function init(){setup("#hlist","#search");setup("#ahlist","#ahsearch")}
+  /* Halaman Book Now selalu dimuat dari bagian paling atas (Part 1) */
+  function watchTop(id,ctl){
+    var sec=document.getElementById(id);if(!sec)return;
+    var user=false;
+    ["touchstart","wheel","keydown","mousedown"].forEach(function(ev){window.addEventListener(ev,function(){user=true},{passive:true,capture:true})});
+    function go(){
+      if(ctl)ctl.reset();
+      user=false;toTop();
+      [0,60,200,450,900,1500].forEach(function(ms){setTimeout(function(){if(!user&&!sec.hidden)toTop()},ms)});
+    }
+    var was=sec.hidden;
+    new MutationObserver(function(){if(was&&!sec.hidden)go();was=sec.hidden}).observe(sec,{attributes:true,attributeFilter:["hidden"]});
+    if(!sec.hidden)go();
+  }
+  function init(){
+    var h=setup("#hlist","#search");setup("#ahlist","#ahsearch");
+    watchTop("v-hotels",h);
+  }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
 })();
 </script>
