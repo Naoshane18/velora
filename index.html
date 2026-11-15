@@ -1668,7 +1668,7 @@ function refundDue(){
     let n=0;
     try{
       await loadFsBookings();
-      const due=(FsBk||[]).filter(b=>b.held===true&&b.refunded!==true&&(b.status==="Dibatalkan"||(b.checkout&&Date.now()>=Date.parse(b.checkout+"T00:00:00Z"))));
+      const due=(FsBk||[]).filter(b=>b.held===true&&b.refunded!==true&&(b.status==="Dibatalkan"||(b.daily!==true&&b.checkout&&Date.now()>=Date.parse(b.checkout+"T00:00:00Z"))));
       for(const b of due){
         try{
           const wb=writeBatch(db);
@@ -1677,15 +1677,59 @@ function refundDue(){
           await wb.commit();b.refunded=true;b.refundedAt=Date.now();n++;
         }catch(x){console.warn("Refund failed",b.id,x)}
       }
+      /* Penutupan harian: Order Amount + Today's Commission hari sebelumnya masuk ke Available Balance */
+      for(const b of dueSettle(FsBk)){if(await settleUserSide(b))n++}
     }catch(x){console.warn("Refund check failed",x)}
     return n;
   })().finally(()=>{refundRun=null});
   return refundRun;
 }
+
+/* ===== Ringkasan harian Dashboard =====
+   - Order Amount  : total booking yang di-approve admin HARI INI (sudah dipotong dari Available Balance).
+   - Today's Commission : komisi booking yang di-approve HARI INI.
+   - Saat pergantian hari, Order Amount + Today's Commission dimasukkan ke Available Balance,
+     lalu keduanya kembali 0. */
+/* Hari dihitung dengan jam New York (America/New_York, otomatis ikut DST), sama dengan Firestore rules */
+const NYF=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",year:"numeric",month:"numeric",day:"numeric"});
+function dayNo(ms){const p={};NYF.formatToParts(new Date(Number(ms))).forEach(x=>p[x.type]=x.value);return Math.floor(Date.UTC(+p.year,+p.month-1,+p.day)/864e5)}
+function nextNyMidnight(n){let t=(dayNo(n)+1)*864e5+4*3600e3;if(dayNo(t)<=dayNo(n))t+=3600e3;return t}
+function bkDay(b){return dayNo(b.confirmedAt||b.created||0)}
+function bkCom(b){return +(Number(b.commission)||0).toFixed(2)}
+function bkHeld(b){return b.held===true&&b.refunded!==true}
+function isDaily(b){return !!b&&b.daily===true&&b.status==="Dikonfirmasi"&&b.settled!==true}
+function todayDaily(list){const t=dayNo(Date.now());return (list||[]).filter(b=>isDaily(b)&&bkDay(b)===t)}
+function dueSettle(list){const t=dayNo(Date.now());return (list||[]).filter(b=>isDaily(b)&&bkDay(b)<t)}
+function settleAmt(b){return (bkHeld(b)?Number(b.total)||0:0)+(b.commissionPaid===true?0:(Number(b.commission)||0))}
+function unsettledPrev(list){return +dueSettle(list).reduce((s,b)=>s+settleAmt(b),0).toFixed(2)}
+async function settleOne(b){
+  const amt=settleAmt(b),now=Date.now(),wb=writeBatch(db);
+  wb.update(doc(db,"bookings",b.id),{settled:true,settledAt:now,refunded:true,refundedAt:b.refundedAt||now,commissionPaid:true});
+  if(amt>0)wb.update(doc(db,"accounts",b.uid),{available:increment(amt),bkRef:b.id});
+  await wb.commit();Object.assign(b,{settled:true,settledAt:now,refunded:true,commissionPaid:true});
+}
+async function settleUserSide(b){
+  try{await settleOne(b);return true}catch(x){console.warn("Daily settle (full) failed",b.id,x)}
+  /* Cadangan: kembalikan Order Amount dengan format refund lama; komisi diselesaikan saat admin membuka panel */
+  if(bkHeld(b)){try{const now=Date.now(),wb=writeBatch(db);
+    wb.update(doc(db,"bookings",b.id),{refunded:true,refundedAt:now});
+    wb.update(doc(db,"accounts",me.uid),{available:increment(Number(b.total)||0),bkRef:b.id});
+    await wb.commit();b.refunded=true;b.refundedAt=now}catch(x){console.warn("Daily settle (refund) failed",b.id,x)}}
+  return false;
+}
+async function adminSettleAll(list){
+  for(const b of dueSettle(list)){try{await settleOne(b)}catch(x){console.warn("Admin daily settle failed",b.id,x)}}
+}
+/* Saat lewat tengah malam dan Dashboard sedang terbuka, hitung ulang otomatis */
+(function midnightTick(){
+  const n=Date.now(),next=nextNyMidnight(n)+5000;
+  setTimeout(()=>{try{if(me&&!$("#v-dashboard").hidden)loadDashboard();else if(me&&!isAdmin())loadAccount()}catch(e){}midnightTick()},Math.max(1000,next-n));
+})();
 async function loadAccount(){
   if(!isAdmin())await refundDue();
   let a=NOACC;
   try{const d=await getDoc(doc(db,"accounts",me.uid));if(d.exists())a={...NOACC,...d.data()}}catch(x){}
+  if(!isAdmin()){const extra=unsettledPrev(FsBk);if(extra>0)a={...a,available:+((Number(a.available)||0)+extra).toFixed(2)}}
   myAcc=a;
   const shown=(profile.name&&profile.name.trim())||profile.userid||me.email;
   $("#pname").textContent=shown;
@@ -2436,6 +2480,7 @@ async function loadAllBookings(){
   if(!isAdmin())return;
   try{
     allBk=(await getDocs(collection(db,"bookings"))).docs.map(d=>({id:d.id,...d.data()})).sort(byNew);
+    await adminSettleAll(allBk);
     renderAllBookings();
   }catch(x){const b=$("#ablist");if(b)b.innerHTML='<p class="err">'+esc(msg(x))+'</p>'}
 }
@@ -2445,6 +2490,7 @@ let users=[],accs={},accUid=null;
 async function loadUsers(){
   if(!isAdmin())return;
   try{
+    try{await adminSettleAll((await getDocs(collection(db,"bookings"))).docs.map(d=>({id:d.id,...d.data()})))}catch(e){}
     users=(await getDocs(collection(db,"users"))).docs.map(d=>({uid:d.id,...d.data()}));
     accs={};(await getDocs(collection(db,"accounts"))).docs.forEach(d=>accs[d.id]={...NOACC,...d.data()});
     $("#aulist").innerHTML=users.length?users.map(u=>{const a=accs[u.uid]||NOACC;
@@ -2502,9 +2548,10 @@ async function loadDashboard(){
  set("#dplan",lv?lv[0]:(String(myAcc.level||"").trim()||"No plan"));
  set("#dcap",cap||"—");set("#dmax",cap||0);
  // KPI harian: tanggal lokal pengguna. Data hari sebelumnya otomatis tidak dihitung.
- const todays=todaysBookingOrders(),used=bkUsed();
- const earn=todays.reduce((sum,o)=>sum+(Number(o.commission)||((Number(o.price)||0)*rate)),0);
- const dailyAmount=todays.reduce((sum,o)=>sum+(Number(o.price)||0),0);
+ // Hanya booking yang di-approve admin hari ini; otomatis kembali 0 saat pergantian hari.
+ const todays=todayDaily(FsBk),used=bkUsed();
+ const earn=todays.reduce((sum,b)=>sum+bkCom(b),0);
+ const dailyAmount=todays.reduce((sum,b)=>sum+(Number(b.total)||0),0);
  set("#dcur",used);
  set("#dcomp",used);
  set("#dearn","+"+money2(earn));set("#dord",money2(dailyAmount));
@@ -2904,6 +2951,7 @@ async function loadTx(){
 async function decide(id,ok){
   const ref=doc(db,"transactions",id),t=(await getDoc(ref)).data();
   if(!t||t.status!=="Menunggu")return loadTx();
+  try{await adminSettleAll((await getDocs(query(collection(db,"bookings"),where("uid","==",t.uid)))).docs.map(d=>({id:d.id,...d.data()})))}catch(e){}
   const b=writeBatch(db);
   if(ok){
     const sign=t.type==="deposit"?1:-1;
@@ -2985,8 +3033,15 @@ document.addEventListener("click",async e=>{
       const a=(await getDoc(accRef)).data()||{};
       const lv=LV.find(x=>x[0].toLowerCase()===String(a.level||"").trim().toLowerCase());
       const c=+((Number(b.total)||0)*(lv?lv[1]/100:0)).toFixed(2);
-      const upd={status:"Dikonfirmasi",confirmedAt:Date.now()};
-      if(!b.commissionPaid&&c>0){upd.commission=c;upd.commissionPaid=true;wb.update(accRef,{available:increment(c)})}
+      /* Komisi masuk ke Today's Commission (dibayar ke Available Balance saat pergantian hari).
+         Order Amount dipotong dari Available Balance; jika saldo booking belum ditahan, potong sekarang. */
+      const upd={status:"Dikonfirmasi",confirmedAt:Date.now(),daily:true,settled:false};
+      if(!b.commissionPaid){upd.commission=c;upd.commissionPaid=false}
+      if(!(b.held===true&&b.refunded!==true)){
+        const tot=Number(b.total)||0;
+        if(tot>(Number(a.available)||0))throw Error("Available Balance user tidak cukup untuk booking ini ("+money(tot)+").");
+        if(tot>0){wb.update(accRef,{available:increment(-tot)});upd.held=true;upd.refunded=false}
+      }
       wb.update(ref,upd);
     }else{
       const upd={status:t.dataset.st};
