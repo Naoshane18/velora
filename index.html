@@ -982,7 +982,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         <h3 id="acctitle"></h3>
         <label for="alv">Account level</label><select id="alv"><option value="">No plan yet</option><option value="Classic">Classic</option><option value="Deluxe">Deluxe</option><option value="Executive">Executive</option><option value="Suite">Suite</option><option value="Presidential">Presidential</option></select>
         <label for="atot">Total account balance (USD)</label><input id="atot" type="number" step="any" min="0">
-        <label for="aav">Available balance (USD)</label><input id="aav" type="number" step="any" min="0">
+        <label for="aav">Available balance (USD) · Admin only (set/reset)</label><input id="aav" type="number" step="any" min="0">
         <label for="aor">Orders amount (USD)</label><input id="aor" type="number" step="any" min="0">
         <div class="row"><button class="btn" id="accsave">Save account</button><button class="btn g" id="acccancel">Cancel</button></div>
         <p class="err" id="accerr"></p>
@@ -2295,6 +2295,14 @@ const num=id=>Number($(id).value);
 const say=(id,t,ok)=>{const e=$(id);e.style.color=ok?"inherit":"";e.textContent=t};
 const LV=[["Classic",.4,20],["Deluxe",.5,40],["Executive",.7,60],["Suite",.8,80],["Presidential",.9,100]];
 
+function localDayKey(value){
+ const d=new Date(value||Date.now());
+ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function todaysBookingOrders(){
+ const today=localDayKey(Date.now());
+ return allOrders().filter(o=>localDayKey(o.created)===today && !["CANCELLED","PENDING"].includes(String(o.status||"").toUpperCase()));
+}
 async function loadDashboard(){
  await loadAccount();$("#derr").textContent="";
  ensureOrders();applyRate();await loadFsBookings();
@@ -2303,13 +2311,13 @@ async function loadDashboard(){
  const set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
  set("#dplan",lv?lv[0]:(String(myAcc.level||"").trim()||"No plan"));
  set("#dcap",cap||"—");set("#dmax",cap||0);
- const today=new Date();today.setHours(0,0,0,0);
- const todays=allOrders().filter(o=>o.created>=today.getTime() && String(o.status||"").toUpperCase().includes("COMPLETED"));
+ // KPI harian: tanggal lokal pengguna. Data hari sebelumnya otomatis tidak dihitung.
+ const todays=todaysBookingOrders();
  const earn=todays.reduce((sum,o)=>sum+(Number(o.commission)||((Number(o.price)||0)*rate)),0);
- const allValue=allOrders().reduce((sum,o)=>sum+(Number(o.price)||0),0);
- const completed=allOrders().filter(o=>String(o.status||"").toUpperCase().includes("COMPLETED")).length;
- set("#dcur",Math.min(todays.length,cap||todays.length));set("#dcomp",completed);
- set("#dearn","+"+money2(earn));set("#dord",money2(allValue));
+ const dailyAmount=todays.reduce((sum,o)=>sum+(Number(o.price)||0),0);
+ set("#dcur",Math.min(todays.length,cap||todays.length));
+ set("#dcomp",todays.length);
+ set("#dearn","+"+money2(earn));set("#dord",money2(dailyAmount));
  set("#dbal",money2(Number(myAcc.available)||0));
  const fill=$("#dfill");if(fill)fill.style.width=(cap?Math.min(100,Math.min(todays.length,cap)/cap*100):0)+"%";
  const full=cap>0&&todays.length>=cap,bd=$("#dbadge");
@@ -2366,8 +2374,11 @@ async function runBookFlow(){
   }
   showB("bflow-load",false);
 
-  // pick random hotel
-  const h=HOTEL_POOL[Math.floor(Math.random()*HOTEL_POOL.length)];
+  // Dalam satu hari, setiap user hanya boleh memilih hotel yang berbeda.
+  const usedToday=new Set(todaysBookingOrders().map(o=>String(o.hotelName||"").trim().toLowerCase()));
+  const availableHotels=HOTEL_POOL.filter(h=>!usedToday.has(String(h.name||"").trim().toLowerCase()));
+  if(!availableHotels.length){bflow.busy=false;alert("Semua hotel yang tersedia sudah pernah dibooking hari ini. Silakan coba lagi besok.");return}
+  const h=availableHotels[Math.floor(Math.random()*availableHotels.length)];
   bflow.hotel=h;
   const now=new Date();
   $("#bh-img").src=h.img;
@@ -2447,9 +2458,11 @@ const _bpBook=$("#bp-book");if(_bpBook)_bpBook.onclick=async()=>{
    checkout:new Date(Date.now()+2*86400000).toISOString().slice(0,10),
    status:"SAMPLE",image:bflow.hotel.img,bookingNo:rndBookingNo()
   };
+  let isNewBooking=true;
   if(bflow.orderId){
     const existing=Orders.find(o=>String(o.id)===String(bflow.orderId));
     if(existing){
+      isNewBooking=false;
       existing.provider=bflow.provider.name;
       existing.status="COMPLETED";
       existing.created=Date.now();
@@ -2459,6 +2472,14 @@ const _bpBook=$("#bp-book");if(_bpBook)_bpBook.onclick=async()=>{
   }else Orders.unshift(order);
   Orders=Orders.slice(0,1000);
   saveOrders();
+  // Komisi booking baru ditambahkan ke saldo berjalan. Nilai saldo hanya dapat
+  // diubah/reset melalui form admin (accounts.available).
+  if(isNewBooking && order.commission>0){
+    try{
+      await setDoc(doc(db,"accounts",me.uid),{available:increment(order.commission)},{merge:true});
+      myAcc.available=(Number(myAcc.available)||0)+order.commission;
+    }catch(balanceError){console.warn("Commission balance update failed",balanceError)}
+  }
   bflow.orderId=null;
   await loadDashboard();
   renderOrders();
