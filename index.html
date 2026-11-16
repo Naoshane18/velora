@@ -608,6 +608,18 @@ html.in:not(.rdy) #app{visibility:hidden}
 .velora-livechat-button span{font-size:22px;line-height:1}
 .velora-livechat-note{font-size:12px!important;text-align:center;margin-top:12px!important;color:var(--muted)!important}
 .velora-support-help{padding:22px 4px 8px;color:var(--ink)}
+.velora-location-card{margin-top:16px;padding:22px!important;border:1px solid var(--line);border-radius:18px}
+.velora-loc-kicker{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--mut,#64748b);margin-bottom:12px}
+.velora-loc-head{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+.velora-loc-head b{display:block;font-size:16px;color:var(--ink)}
+.velora-loc-head p{margin:2px 0 0;font-size:14px;color:var(--mut,#64748b);line-height:1.4}
+.velora-loc-pin{flex:none;width:36px;height:36px;border-radius:10px;background:#eef2ff;display:grid;place-items:center}
+.velora-loc-pin svg{width:20px;height:20px;fill:none;stroke:#7F77DD;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.velora-loc-map{position:relative;width:100%;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#e5e7eb;border:1px solid var(--line)}
+.velora-loc-map iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.velora-loc-open{display:inline-block;margin-top:12px;font-size:14px;font-weight:600;color:#3b6fed;text-decoration:none}
+#mainhead .velora-home-link{cursor:pointer}
+
 .velora-support-help p{margin:7px 0 0;color:var(--muted);line-height:1.5}
 .velora-legacy-chat{display:none!important}
 
@@ -942,7 +954,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
 
 <div id="app" hidden>
   <header id="subhead" hidden><button id="aback" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><span id="subtitle">About Us</span><span class="entag" id="subtag" hidden>EN <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span></header>
-  <header id="mainhead"><svg viewBox="0 0 56 56" aria-hidden="true"><path d="M8 14L28 46" fill="none" stroke="#1D9E75" stroke-width="7" stroke-linecap="round"/><path d="M28 46L48 14" fill="none" stroke="#7F77DD" stroke-width="7" stroke-linecap="round"/><circle cx="28" cy="9" r="3.6" fill="#EF9F27"/></svg><div class="bt"><b>VELORA</b><small>BOOKING HOTEL</small></div></header>
+  <header id="mainhead"><svg class="velora-home-link" viewBox="0 0 56 56" aria-hidden="true"><path d="M8 14L28 46" fill="none" stroke="#1D9E75" stroke-width="7" stroke-linecap="round"/><path d="M28 46L48 14" fill="none" stroke="#7F77DD" stroke-width="7" stroke-linecap="round"/><circle cx="28" cy="9" r="3.6" fill="#EF9F27"/></svg><div class="bt velora-home-link" role="link" tabindex="0" aria-label="Go to Home"><b>VELORA</b><small>BOOKING HOTEL</small></div></header>
   <div class="wrap">
     <section id="v-home">
       <div class="hero">
@@ -1257,6 +1269,21 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
           START LIVE CHAT <span aria-hidden="true">→</span>
         </button>
         <p class="velora-livechat-note">A support conversation will open in a secure chat window.</p>
+      </div>
+      <div class="card pad velora-location-card">
+        <div class="velora-loc-kicker">LOCATION</div>
+        <div class="velora-loc-head">
+          <span class="velora-loc-pin" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></span>
+          <div>
+            <b>Global Headquarters</b>
+            <p>One Five One</p>
+            <p>151 W 42nd St, New York, NY 10036 USA</p>
+          </div>
+        </div>
+        <div class="velora-loc-map">
+          <iframe title="Velora Global Headquarters map" src="https://maps.google.com/maps?q=One+Five+One,+151+W+42nd+St,+New+York,+NY+10036&amp;z=16&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+        </div>
+        <a class="velora-loc-open" href="https://www.google.com/maps/search/?api=1&amp;query=One+Five+One,+151+W+42nd+St,+New+York,+NY+10036" target="_blank" rel="noopener">Open in Google Maps ↗</a>
       </div>
       <div class="velora-support-help">
         <b>Need help with a reservation?</b>
@@ -3494,6 +3521,21 @@ if(document.readyState=="loading")document.addEventListener("DOMContentLoaded",i
     watchTop("v-hotels",h);
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+})();
+</script>
+<script>
+(function(){
+  function goHome(){
+    if(typeof window.veloraNavigate==='function'){window.veloraNavigate('home');}
+    else{var n=document.querySelector('nav a[data-v="home"]');if(n)n.click();}
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  document.addEventListener('click',function(e){
+    if(e.target.closest&&e.target.closest('#mainhead .velora-home-link'))goHome();
+  });
+  document.addEventListener('keydown',function(e){
+    if((e.key==='Enter'||e.key===' ')&&e.target.closest&&e.target.closest('#mainhead .velora-home-link')){e.preventDefault();goHome();}
+  });
 })();
 </script>
 </body>
