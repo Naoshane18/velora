@@ -1695,7 +1695,7 @@ function refundDue(){
     let n=0;
     try{
       await loadFsBookings();
-      const due=(FsBk||[]).filter(b=>b.held===true&&b.refunded!==true&&(b.status==="Dibatalkan"||(b.daily!==true&&b.checkout&&Date.now()>=Date.parse(b.checkout+"T00:00:00Z"))));
+      const due=(FsBk||[]).filter(b=>b.held===true&&b.refunded!==true&&(b.status==="Dibatalkan"||coDue(b)));
       for(const b of due){
         try{
           const wb=writeBatch(db);
@@ -1724,21 +1724,31 @@ function nextNyMidnight(n){let t=(dayNo(n)+1)*864e5+4*3600e3;if(dayNo(t)<=dayNo(
 function bkDay(b){return dayNo(b.confirmedAt||b.created||0)}
 function bkCom(b){return +(Number(b.commission)||0).toFixed(2)}
 function bkHeld(b){return b.held===true&&b.refunded!==true}
+/* Tanggal check-out sudah tiba (tanggal lokal perangkat) */
+function localToday(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function coDue(b){return !!(b&&b.checkout)&&localToday()>=String(b.checkout)}
+/* Orders Amount = total harga booking yang saldonya masih ditahan (belum check-out & tidak dibatalkan).
+   Tidak di-reset harian; berkurang otomatis saat tanggal check-out tiba (uang masuk ke Available Balance). */
+function heldList(list){return (list||[]).filter(b=>bkHeld(b)&&b.status!=="Dibatalkan"&&!coDue(b))}
+function heldAmt(list){return +heldList(list).reduce((s,b)=>s+(Number(b.total)||0),0).toFixed(2)}
 function isDaily(b){return !!b&&b.daily===true&&b.status==="Dikonfirmasi"&&b.settled!==true}
 function todayDaily(list){const t=dayNo(Date.now());return (list||[]).filter(b=>isDaily(b)&&bkDay(b)===t)}
 function dueSettle(list){const t=dayNo(Date.now());return (list||[]).filter(b=>isDaily(b)&&bkDay(b)<t)}
-function settleAmt(b){return (bkHeld(b)?Number(b.total)||0:0)+(b.commissionPaid===true?0:(Number(b.commission)||0))}
+function settleAmt(b){return (bkHeld(b)&&coDue(b)?Number(b.total)||0:0)+(b.commissionPaid===true?0:(Number(b.commission)||0))}
 function unsettledPrev(list){return +dueSettle(list).reduce((s,b)=>s+settleAmt(b),0).toFixed(2)}
 async function settleOne(b){
   const amt=settleAmt(b),now=Date.now(),wb=writeBatch(db);
-  wb.update(doc(db,"bookings",b.id),{settled:true,settledAt:now,refunded:true,refundedAt:b.refundedAt||now,commissionPaid:true});
+  /* Pergantian hari: komisi masuk Available Balance. Harga booking baru dikembalikan saat tanggal check-out tiba. */
+  const rel=bkHeld(b)&&coDue(b),upd={settled:true,settledAt:now,commissionPaid:true};
+  if(rel){upd.refunded=true;upd.refundedAt=b.refundedAt||now}
+  wb.update(doc(db,"bookings",b.id),upd);
   if(amt>0)wb.update(doc(db,"accounts",b.uid),{available:increment(amt),bkRef:b.id});
-  await wb.commit();Object.assign(b,{settled:true,settledAt:now,refunded:true,commissionPaid:true});
+  await wb.commit();Object.assign(b,upd);
 }
 async function settleUserSide(b){
   try{await settleOne(b);return true}catch(x){console.warn("Daily settle (full) failed",b.id,x)}
   /* Cadangan: kembalikan Order Amount dengan format refund lama; komisi diselesaikan saat admin membuka panel */
-  if(bkHeld(b)){try{const now=Date.now(),wb=writeBatch(db);
+  if(bkHeld(b)&&coDue(b)){try{const now=Date.now(),wb=writeBatch(db);
     wb.update(doc(db,"bookings",b.id),{refunded:true,refundedAt:now});
     wb.update(doc(db,"accounts",me.uid),{available:increment(Number(b.total)||0),bkRef:b.id});
     await wb.commit();b.refunded=true;b.refundedAt=now}catch(x){console.warn("Daily settle (refund) failed",b.id,x)}}
@@ -1761,7 +1771,7 @@ async function loadAccount(){
   /* Profil & Wallet: Orders Amount = booking di-approve hari ini (jam New York),
      Total Account Balance = Available Balance + Orders Amount + Today's Commission */
   let dayOrd=0,dayCom=0;
-  if(!isAdmin()){const td=todayDaily(FsBk);dayOrd=td.reduce((s,b)=>s+(Number(b.total)||0),0);dayCom=td.reduce((s,b)=>s+bkCom(b),0)}
+  if(!isAdmin()){const td=todayDaily(FsBk);dayOrd=heldAmt(FsBk);dayCom=td.reduce((s,b)=>s+bkCom(b),0)}
   else{dayOrd=Number(a.orders)||0}
   const totalBal=isAdmin()?(Number(a.total)||0):+((Number(a.available)||0)+dayOrd+dayCom).toFixed(2);
   const shown=(profile.name&&profile.name.trim())||profile.userid||me.email;
@@ -2588,7 +2598,7 @@ async function loadDashboard(){
  // Hanya booking yang di-approve admin hari ini; otomatis kembali 0 saat pergantian hari.
  const todays=todayDaily(FsBk),used=bkUsed();
  const earn=todays.reduce((sum,b)=>sum+bkCom(b),0);
- const dailyAmount=todays.reduce((sum,b)=>sum+(Number(b.total)||0),0);
+ const dailyAmount=heldAmt(FsBk);
  set("#dcur",used);
  set("#dcomp",used);
  set("#dearn","+"+money2(earn));set("#dord",money2(dailyAmount));
