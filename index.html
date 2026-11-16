@@ -3538,5 +3538,38 @@ if(document.readyState=="loading")document.addEventListener("DOMContentLoaded",i
   });
 })();
 </script>
+<style id="navprof">
+/* Desktop: menu Profile jadi avatar bulat dengan inisial (gaya INNFinite) di pojok kanan, setelah tombol bahasa */
+nav a[data-v="profile"] .navav{display:none}
+@media (min-width:900px){
+  nav{right:calc(max(32px,calc(50% - 580px)) + 164px)}
+  header .lgsw{margin-right:68px}
+  nav a[data-v="profile"]{position:fixed;top:16px;right:max(32px,calc(50% - 580px));width:44px;height:44px;padding:0!important;gap:0;border-radius:50%;justify-content:center;align-items:center;background:#1a2336;border:1px solid #2c3a55;color:#4f7df5;transition:border-color .2s,background .2s}
+  nav a[data-v="profile"] span{display:none}
+  nav a[data-v="profile"].has svg{display:none}
+  nav a[data-v="profile"].has .navav{display:block;font:700 17px/1 Outfit,system-ui,sans-serif;color:#4f7df5}
+  nav a[data-v="profile"]:hover{background:#22304a;border-color:#3b6cf0}
+  nav a[data-v="profile"].on{background:#1a2336;border-color:#3b6cf0;box-shadow:0 0 0 3px #3b6cf033}
+}
+@media (min-width:900px) and (max-width:1199px){
+  nav{gap:2px}
+  nav a:not([data-v="profile"]){padding:10px 12px;font-size:14px}
+  nav a:not([data-v="profile"]) svg{display:none}
+}
+@media (min-width:1500px){
+  nav{right:calc(max(32px,calc(50% - 640px)) + 164px)}
+  nav a[data-v="profile"]{right:max(32px,calc(50% - 640px))}
+}
+</style>
+<script>
+(function(){
+  var a=document.querySelector('nav a[data-v="profile"]');if(!a)return;
+  a.setAttribute('title','Profile');a.setAttribute('aria-label','Profile');
+  var i=document.createElement('b');i.className='navav';a.appendChild(i);
+  function sync(){var p=document.getElementById('pav');var t=p?(p.textContent||'').trim():'';i.textContent=t;a.classList.toggle('has',!!t)}
+  sync();var p=document.getElementById('pav');
+  if(p)new MutationObserver(sync).observe(p,{childList:true,characterData:true,subtree:true});
+})();
+</script>
 </body>
 </html>
