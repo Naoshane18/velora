@@ -2298,9 +2298,13 @@ function bookingBalanceMessage(price,balance){
   return "Booking tidak dapat dilanjutkan. Total harga hotel "+money(price)+
     " melebihi Available Balance "+money(balance)+". Silakan pilih hotel yang lebih murah atau hubungi admin.";
 }
-/* Booking aktif (Pending/Confirmed) per hotel: pengunjung tidak bisa booking hotel yang sama lagi */
-const bkId=hid=>me.uid+"_"+String(hid).replace(/[\/]/g,"-");
-function activeBooking(hid){return (FsBk||[]).find(b=>String(b.hotelId)===String(hid)&&b.status!=="Dibatalkan")}
+/* Booking aktif per hotel: belum dibatalkan DAN tanggal check-out belum tiba.
+   Contoh: check-in 15, check-out 17 -> tanggal 15-16 tombol "Booked", mulai tanggal 17 bisa booking lagi. */
+const bkId=hid=>me.uid+"_"+String(hid).replace(/[\/]/g,"-")+"_"+Date.now();
+function activeBooking(hid){
+ const now=new Date(),today=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+ return (FsBk||[]).find(b=>String(b.hotelId)===String(hid)&&b.status!=="Dibatalkan"&&(!b.checkout||today<String(b.checkout)));
+}
 const isoDay=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
 const addDays=(v,n)=>{const d=new Date(v+"T00:00:00");d.setDate(d.getDate()+n);return isoDay(d)};
 const maxNights=()=>cur&&Number(cur.price)>0?Math.floor((Number(myAcc.available)||0)/Number(cur.price)):0;
