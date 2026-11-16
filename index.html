@@ -1724,8 +1724,8 @@ function nextNyMidnight(n){let t=(dayNo(n)+1)*864e5+4*3600e3;if(dayNo(t)<=dayNo(
 function bkDay(b){return dayNo(b.confirmedAt||b.created||0)}
 function bkCom(b){return +(Number(b.commission)||0).toFixed(2)}
 function bkHeld(b){return b.held===true&&b.refunded!==true}
-/* Tanggal check-out sudah tiba (tanggal lokal perangkat) */
-function localToday(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+/* Tanggal check-out sudah tiba (tanggal New York, America/New_York, ikut DST) */
+function localToday(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now()))}
 function coDue(b){return !!(b&&b.checkout)&&localToday()>=String(b.checkout)}
 /* Orders Amount = total harga booking yang saldonya masih ditahan (belum check-out & tidak dibatalkan).
    Tidak di-reset harian; berkurang otomatis saat tanggal check-out tiba (uang masuk ke Available Balance). */
@@ -2312,7 +2312,7 @@ function bookingBalanceMessage(price,balance){
    Contoh: check-in 15, check-out 17 -> tanggal 15-16 tombol "Booked", mulai tanggal 17 bisa booking lagi. */
 const bkId=hid=>me.uid+"_"+String(hid).replace(/[\/]/g,"-")+"_"+Date.now();
 function activeBooking(hid){
- const now=new Date(),today=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+ const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now())); /* tanggal New York */
  return (FsBk||[]).find(b=>String(b.hotelId)===String(hid)&&b.status!=="Dibatalkan"&&(!b.checkout||today<String(b.checkout)));
 }
 const isoDay=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
@@ -2339,6 +2339,8 @@ $("#bsend").onclick=async()=>{
   const n=nights();if(!n)return $("#berr").textContent="Check-out must be after check-in.";
   const btn=$("#bsend");btn.disabled=true;
   try{
+    /* Kembalikan dulu saldo booking yang tanggal check-out-nya sudah tiba, baru cek saldo */
+    await refundDue();
     const price=n*Number(cur.price),balance=await freshBookingBalance();
     if(!Number.isFinite(price)||price<=0)throw Error("Harga hotel tidak valid.");
     if(price>balance){$("#berr").textContent=bookingBalanceMessage(price,balance);return}
@@ -2579,8 +2581,7 @@ const say=(id,t,ok)=>{const e=$(id);e.style.color=ok?"inherit":"";e.textContent=
 const LV=[["Classic",.4,20],["Deluxe",.5,40],["Executive",.7,60],["Suite",.8,80],["Presidential",.9,100]];
 
 function localDayKey(value){
- const d=new Date(value||Date.now());
- return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+ return new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(value||Date.now()));
 }
 function todaysBookingOrders(){
  const today=localDayKey(Date.now());
@@ -3048,7 +3049,7 @@ document.addEventListener("click",async e=>{
     {const lm=bookingLimitMsg();if(lm){alert(lm);return}}
     await loadFsBookings();
     if(activeBooking(cur.id)){alert("You already booked this hotel. Your order is waiting for / confirmed by admin.");renderHotels();return}
-    const today=isoDay(Date.now());
+    const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now())); /* check-in paling awal: hari ini waktu New York */
     $("#bname").textContent=cur.name;$("#ci").min=today;
     $("#ci").value=today;$("#co").value=addDays(today,1);$("#berr").textContent="";$("#bsend").disabled=false;total();$("#dlg").showModal();
   }
