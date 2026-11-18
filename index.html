@@ -649,7 +649,7 @@ body.velora-tawk-open [class*="tawk"] {
 #v-orders .order-card{transition:transform .18s,box-shadow .18s}
 #v-orders .order-card:focus-within{box-shadow:0 0 0 2px var(--blue),0 8px 20px #0b122018}
 
-#accform select#alv{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px;font:500 16px Outfit,system-ui,sans-serif;background:var(--card);color:var(--ink)}
+#accform select#apm,#accform select#apt,#accform select#alv{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px;font:500 16px Outfit,system-ui,sans-serif;background:var(--card);color:var(--ink)}
 /* ---------- Admin: halaman Hotel list tersendiri ---------- */
 #v-adminhotels .ah-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:4px 0 16px;flex-wrap:wrap}
 #v-adminhotels .ah-eyebrow{font:700 12px ui-monospace,Menlo,monospace;letter-spacing:.18em;color:#2457df;margin:0 0 6px}
@@ -1028,6 +1028,13 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         <label for="aav">Available balance (USD) · Admin only (set/reset)</label><input id="aav" type="number" step="any" min="0">
         <label for="aor">Orders amount (USD)</label><input id="aor" type="number" step="any" min="0">
         <label for="acnt">Bookings used (Mission Control) · set 0 to reset</label><div class="row" style="margin:0;gap:8px"><input id="acnt" type="number" step="1" min="0" style="flex:1"><button type="button" class="btn g" id="acntreset" style="flex:none">Reset to 0</button></div>
+        <h3 style="margin:18px 0 8px">Payout method</h3>
+        <label for="apm">Method</label><select id="apm"><option value="bank">Bank</option><option value="wise">Wise</option><option value="trc20">USDT TRC20</option><option value="erc20">USDT ERC20</option></select>
+        <div id="aptw"><label for="apt">Bank / E-Wallet</label><select id="apt"><option value="">-</option><option value="Bank">Bank</option><option value="E-Wallet">E-Wallet</option></select></div>
+        <div><label for="ap0"></label><input id="ap0" autocomplete="off"></div>
+        <div><label for="ap1"></label><input id="ap1" autocomplete="off"></div>
+        <div><label for="ap2"></label><input id="ap2" autocomplete="off"></div>
+        <p class="mut" style="font-size:13px;margin:6px 0 0">Kosongkan semua kolom metode ini untuk menghapusnya (user bisa bind ulang).</p>
         <div class="row"><button class="btn" id="accsave">Save account</button><button class="btn g" id="acccancel">Cancel</button></div>
         <p class="err" id="accerr"></p>
       </div>
@@ -2537,7 +2544,15 @@ async function loadAllBookings(){
 }
 document.addEventListener("click",e=>{const t=e.target.closest("[data-aotab]");if(t){aoTab=t.dataset.aotab;renderAllBookings()}});
 $("#aosearch").addEventListener("input",renderAllBookings);
-let users=[],accs={},accUid=null;
+let users=[],accs={},accUid=null,accPay=null,apK="bank";
+const pmOf=p=>{p=p||{};const m={...(p.m||{})};if(p.number&&!m.bank)m.bank={bank:p.bank,holder:p.holder,number:p.number};return m};
+function apStash(){if(!accPay)return;const f=PMF[apK],v=[0,1,2].map(i=>$("#ap"+i).value.trim()),d={};
+  if(f[0]&&v[0])d.bank=v[0];if(f[1]&&v[1])d.holder=v[1];if(f[2]&&v[2])d.number=v[2].replace(/\s/g,"");
+  if(apK==="bank"&&$("#apt").value)d.type=$("#apt").value;
+  if(Object.keys(d).length)accPay.m[apK]=d;else delete accPay.m[apK]}
+function apLoad(){apK=$("#apm").value;const f=PMF[apK],d=accPay.m[apK]||{};$("#aptw").hidden=apK!=="bank";$("#apt").value=d.type||"";
+  [0,1,2].forEach(i=>{const w=$("#ap"+i).parentNode;w.hidden=!f[i];w.querySelector("label").textContent=f[i]||"";$("#ap"+i).value=[d.bank,d.holder,d.number][i]||""})}
+$("#apm").onchange=()=>{apStash();apLoad()};
 async function loadUsers(){
   if(!isAdmin())return;
   try{
@@ -2555,7 +2570,10 @@ $("#accsave").onclick=async()=>{
   const n=i=>Number($(i).value||0);
   const d={level:$("#alv").value.trim(),total:n("#atot"),available:n("#aav"),orders:n("#aor"),cCount:Math.floor(n("#acnt"))};
   if([d.total,d.available,d.orders,d.cCount].some(v=>!isFinite(v)||v<0))return $("#accerr").textContent="Invalid number.";
-  try{await setDoc(doc(db,"accounts",accUid),d);$("#accform").hidden=true;accUid=null;loadUsers()}
+  apStash();
+  const u=users.find(x=>x.uid===accUid)||{},po={...(u.payout||{}),m:accPay.m},b=accPay.m.bank;
+  if(b){po.bank=b.bank||"";po.holder=b.holder||"";po.number=b.number||""}else{delete po.bank;delete po.holder;delete po.number}
+  try{await setDoc(doc(db,"accounts",accUid),d);await updateDoc(doc(db,"users",accUid),{payout:po});u.payout=po;$("#accform").hidden=true;accUid=null;loadUsers()}
   catch(x){$("#accerr").textContent=msg(x)}
 };
 function resetForm(){
@@ -2829,17 +2847,19 @@ async function wlTx(){try{return(await getDocs(query(collection(db,"transactions
 const wlRow=t=>`<div class="kv"><span>${esc(TL[t.type]||t.type)}<br><small class="mut">${fmt(t.created)}</small></span><span style="text-align:right"><b>${t.type==="deposit"?"+":"−"}${money(t.amount)}</b><br><small class="mut">${esc(stl(t.status))}</small></span></div>`;
 function fillWallet(){
   const m=pmList();let n=0;
-  document.querySelectorAll("#v-wallet .pm").forEach(r=>{const k=r.dataset.m,d=m[k];if(d)n++;r.querySelector("small").textContent=d?wlLast4(d):"Not bound";r.querySelector("button").textContent=d?"EDIT":"BIND"});
+  document.querySelectorAll("#v-wallet .pm").forEach(r=>{const k=r.dataset.m,d=m[k];if(d)n++;r.querySelector("small").textContent=d?wlLast4(d):"Not bound";r.querySelector("button").textContent=d?"VIEW":"BIND"});
   $("#wbound").textContent=n+" BOUND";
   const sel=$("#xacc"),keep=sel.value;
   sel.innerHTML='<option value="">Select account</option>'+Object.keys(m).map(k=>`<option value="${k}">${PMN[k]} · ${esc(wlLast4(m[k]))}</option>`).join("");
   sel.value=m[keep]?keep:"";
   hxItems().then(l=>{$("#wact").innerHTML=l.length?l.slice(0,3).map(hxRow).join(""):'<p class="mut">No activity yet</p>'});
 }
-let bindK=null;
+let bindK=null,bindRO=false;
 function openBind(k){
   bindK=k;const d=pmList()[k]||{},f=PMF[k];
-  $("#bnt").textContent=(Object.keys(d).length?"Edit ":"Bind ")+PMN[k];
+  const ro=Object.keys(d).length>0;bindRO=ro;
+  $("#bnt").textContent=(ro?"":"Bind ")+PMN[k];
+  ["#bkt","#bk0","#bk1","#bk2"].forEach(x=>{$(x).disabled=ro});$("#bnsave").hidden=ro;
   [0,1,2].forEach(i=>{const w=$("#bk"+i).parentNode;w.hidden=!f[i];if(f[i]){w.querySelector("label").textContent=f[i];$("#bk"+i).value=[d.bank,d.holder,d.number][i]||""}});
   $("#bktw").hidden=k!=="bank";$("#bkt").value=d.type||"";
   $("#bnerr").textContent="";$("#bindsheet").hidden=false;
@@ -2847,6 +2867,7 @@ function openBind(k){
 document.querySelectorAll("#v-wallet .pm button").forEach(b=>b.onclick=()=>openBind(b.closest(".pm").dataset.m));
 $("#bnbd").onclick=$("#bnx").onclick=()=>{$("#bindsheet").hidden=true};
 $("#bnsave").onclick=async()=>{
+  if(bindRO||pmList()[bindK])return say("#bnerr","Contact admin to change this account.");
   const f=PMF[bindK],v=[0,1,2].map(i=>$("#bk"+i).value.trim()),d={};
   if(bindK==="bank"&&!$("#bkt").value)return say("#bnerr","Please choose Bank or E-Wallet.");
   if(f.some((x,i)=>x&&!v[i]))return say("#bnerr","Please fill in all fields.");
@@ -3067,6 +3088,7 @@ document.addEventListener("click",async e=>{
     $("#acctitle").textContent="Edit account @"+u.userid;{const sel=$("#alv"),lvl=String(a.level||"").trim();sel.querySelectorAll("option[data-legacy]").forEach(o=>o.remove());
       const hit=[...sel.options].find(o=>o.value.toLowerCase()===lvl.toLowerCase());
       if(hit)sel.value=hit.value;else if(lvl){const o=document.createElement("option");o.value=lvl;o.textContent=lvl+" (not in pricing)";o.dataset.legacy="1";sel.appendChild(o);sel.value=lvl}else sel.value=""}
+    accPay={m:pmOf(u.payout)};$("#apm").value="bank";apLoad();
     $("#atot").value=a.total;$("#aav").value=a.available;$("#aor").value=a.orders;$("#acnt").value=Number(a.cCount)||0;
     $("#accerr").textContent="";$("#accform").hidden=false;$("#accform").scrollIntoView({behavior:"smooth"});
   }
@@ -3432,6 +3454,8 @@ Approved~Genehmigt|Approvato|Approuv\xe9|Goedgekeurd
 Rejected~Abgelehnt|Rifiutato|Refus\xe9|Afgewezen
 Withdrawal~Auszahlung|Prelievo|Retrait|Opname
 Bank~Bank|Banca|Banque|Bank
+VIEW~ANSEHEN|VEDI|VOIR|BEKIJKEN
+Contact admin to change this account.~Wenden Sie sich an den Admin, um dieses Konto zu \u00e4ndern.|Contatta l'admin per modificare questo account.|Contactez l'admin pour modifier ce compte.|Neem contact op met de admin om dit account te wijzigen.
 Bank / E-Wallet~Bank / E-Wallet|Banca / E-Wallet|Banque / Portefeuille \u00e9lectronique|Bank / E-wallet
 Select bank / e-wallet~Bank / E-Wallet w\u00e4hlen|Seleziona banca / e-wallet|Choisir banque / portefeuille \u00e9lectronique|Kies bank / e-wallet
 E-Wallet~E-Wallet|E-Wallet|Portefeuille \u00e9lectronique|E-wallet
