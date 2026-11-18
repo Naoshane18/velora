@@ -1465,8 +1465,8 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
   <button type="button" class="sh-bd" id="bnbd" aria-label="Close"></button>
   <div class="sh-box"><i class="sh-grip"></i><button type="button" class="sh-x" id="bnx" aria-label="Close">&times;</button>
     <h3 id="bnt">Bind</h3>
-    <div class="bf" id="bktw"><label for="bkt">Bank / Wallet</label><select id="bkt"><option value="">Pilih bank / wallet</option><option value="Bank">Bank</option><option value="E-Wallet">E-Wallet</option></select></div>
-    <div class="bf"><label for="bk0"></label><input id="bk0" autocomplete="off" placeholder="Contoh: BCA, DANA, OVO"></div>
+    <div class="bf" id="bktw"><label for="bkt">Bank / E-Wallet</label><select id="bkt"><option value="">Select bank / e-wallet</option><option value="Bank">Bank</option><option value="E-Wallet">E-Wallet</option></select></div>
+    <div class="bf"><label for="bk0"></label><input id="bk0" autocomplete="off"></div>
     <div class="bf"><label for="bk1"></label><input id="bk1" autocomplete="off"></div>
     <div class="bf"><label for="bk2"></label><input id="bk2" autocomplete="off"></div>
     <button type="button" class="btn w" id="bnsave">Save</button><p class="err" id="bnerr"></p>
@@ -2821,7 +2821,7 @@ const _bokGot=$("#bok-got");if(_bokGot)_bokGot.onclick=()=>{showB("bflow-ok",fal
 })();
 
 const PMN={bank:"Bank",wise:"Wise",trc20:"USDT TRC20",erc20:"USDT ERC20"};
-const PMF={bank:["Jenis bank / wallet","Nama akun bank / wallet","Nomor rekening"],wise:[0,"Account holder name","Wise email or ID"],trc20:[0,0,"Wallet address (TRC20)"],erc20:[0,0,"Wallet address (ERC20)"]};
+const PMF={bank:["Bank / e-wallet name","Account name","Account number"],wise:[0,"Account holder name","Wise email or ID"],trc20:[0,0,"Wallet address (TRC20)"],erc20:[0,0,"Wallet address (ERC20)"]};
 const wlLast4=d=>d.number?"•••• "+String(d.number).slice(-4):(d.bank||d.holder||"Bound");
 function pmList(){const p=profile.payout||{},m={...(p.m||{})};if(p.number&&!m.bank)m.bank={bank:p.bank,holder:p.holder,number:p.number};return m}
 async function wlHash(x){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("velora:"+x));return Array.from(new Uint8Array(b)).map(v=>v.toString(16).padStart(2,"0")).join("")}catch(e){return"p:"+x}}
@@ -2848,7 +2848,7 @@ document.querySelectorAll("#v-wallet .pm button").forEach(b=>b.onclick=()=>openB
 $("#bnbd").onclick=$("#bnx").onclick=()=>{$("#bindsheet").hidden=true};
 $("#bnsave").onclick=async()=>{
   const f=PMF[bindK],v=[0,1,2].map(i=>$("#bk"+i).value.trim()),d={};
-  if(bindK==="bank"&&!$("#bkt").value)return say("#bnerr","Pilih Bank atau Wallet.");
+  if(bindK==="bank"&&!$("#bkt").value)return say("#bnerr","Please choose Bank or E-Wallet.");
   if(f.some((x,i)=>x&&!v[i]))return say("#bnerr","Please fill in all fields.");
   if(bindK==="bank")d.type=$("#bkt").value;
   if(f[0])d.bank=v[0];if(f[1])d.holder=v[1];if(f[2])d.number=v[2].replace(/\s/g,"");
@@ -3432,6 +3432,13 @@ Approved~Genehmigt|Approvato|Approuv\xe9|Goedgekeurd
 Rejected~Abgelehnt|Rifiutato|Refus\xe9|Afgewezen
 Withdrawal~Auszahlung|Prelievo|Retrait|Opname
 Bank~Bank|Banca|Banque|Bank
+Bank / E-Wallet~Bank / E-Wallet|Banca / E-Wallet|Banque / Portefeuille \u00e9lectronique|Bank / E-wallet
+Select bank / e-wallet~Bank / E-Wallet w\u00e4hlen|Seleziona banca / e-wallet|Choisir banque / portefeuille \u00e9lectronique|Kies bank / e-wallet
+E-Wallet~E-Wallet|E-Wallet|Portefeuille \u00e9lectronique|E-wallet
+Bank / e-wallet name~Name der Bank / des E-Wallets|Nome banca / e-wallet|Nom de la banque / du portefeuille|Naam bank / e-wallet
+Account name~Kontoname|Nome dell'account|Nom du compte|Accountnaam
+Account number~Kontonummer|Numero di conto|Num\u00e9ro de compte|Rekeningnummer
+Please choose Bank or E-Wallet.~Bitte Bank oder E-Wallet w\u00e4hlen.|Scegli Banca o E-Wallet.|Veuillez choisir Banque ou portefeuille \u00e9lectronique.|Kies Bank of E-wallet.
 Please fill in all fields.~Bitte alle Felder ausf\xfcllen.|Compila tutti i campi.|Veuillez remplir tous les champs.|Vul alle velden in.
 Incorrect withdraw password.~Falsches Auszahlungspasswort.|Password di prelievo errata.|Mot de passe de retrait incorrect.|Onjuist opnamewachtwoord.
 Enter a valid amount.~Geben Sie einen g\xfcltigen Betrag ein.|Inserisci un importo valido.|Saisissez un montant valide.|Voer een geldig bedrag in.
