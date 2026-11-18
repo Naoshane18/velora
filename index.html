@@ -2862,6 +2862,7 @@ function openBind(k){
   ["#bkt","#bk0","#bk1","#bk2"].forEach(x=>{$(x).disabled=ro});$("#bnsave").hidden=ro;
   [0,1,2].forEach(i=>{const w=$("#bk"+i).parentNode;w.hidden=!f[i];if(f[i]){w.querySelector("label").textContent=f[i];$("#bk"+i).value=[d.bank,d.holder,d.number][i]||""}});
   $("#bktw").hidden=k!=="bank";$("#bkt").value=d.type||"";
+  if(ro){const n=String(d.number||"");$("#bk2").value=n.length>4?"•".repeat(n.length-4)+n.slice(-4):"••••"}
   $("#bnerr").textContent="";$("#bindsheet").hidden=false;
 }
 document.querySelectorAll("#v-wallet .pm button").forEach(b=>b.onclick=()=>openBind(b.closest(".pm").dataset.m));
