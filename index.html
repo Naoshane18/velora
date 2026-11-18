@@ -905,6 +905,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
 @media(min-width:900px){.hx-sum{grid-template-columns:repeat(4,1fr)}}
 </style>
 <style>/* Frame foto daftar hotel lebih ringkas */#hlist .hc img{aspect-ratio:2/1;max-height:180px;object-fit:cover;object-position:center}</style>
+<style>#bindsheet select#bkt{width:100%;height:auto;margin:0;padding:14px;border:1.5px solid var(--line);border-radius:10px;font:500 16px Outfit,system-ui,sans-serif;background:var(--card);color:var(--ink)}</style>
 </head>
 <body>
 <div id="topbar"></div>
@@ -1464,7 +1465,8 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
   <button type="button" class="sh-bd" id="bnbd" aria-label="Close"></button>
   <div class="sh-box"><i class="sh-grip"></i><button type="button" class="sh-x" id="bnx" aria-label="Close">&times;</button>
     <h3 id="bnt">Bind</h3>
-    <div class="bf"><label for="bk0"></label><input id="bk0" autocomplete="off"></div>
+    <div class="bf" id="bktw"><label for="bkt">Bank / Wallet</label><select id="bkt"><option value="">Pilih bank / wallet</option><option value="Bank">Bank</option><option value="E-Wallet">E-Wallet</option></select></div>
+    <div class="bf"><label for="bk0"></label><input id="bk0" autocomplete="off" placeholder="Contoh: BCA, DANA, OVO"></div>
     <div class="bf"><label for="bk1"></label><input id="bk1" autocomplete="off"></div>
     <div class="bf"><label for="bk2"></label><input id="bk2" autocomplete="off"></div>
     <button type="button" class="btn w" id="bnsave">Save</button><p class="err" id="bnerr"></p>
@@ -2819,8 +2821,8 @@ const _bokGot=$("#bok-got");if(_bokGot)_bokGot.onclick=()=>{showB("bflow-ok",fal
 })();
 
 const PMN={bank:"Bank",wise:"Wise",trc20:"USDT TRC20",erc20:"USDT ERC20"};
-const PMF={bank:["Bank name","Account holder name","Account/card number"],wise:[0,"Account holder name","Wise email or ID"],trc20:[0,0,"Wallet address (TRC20)"],erc20:[0,0,"Wallet address (ERC20)"]};
-const wlLast4=d=>"•••• "+String(d.number||"").slice(-4);
+const PMF={bank:["Jenis bank / wallet","Nama akun bank / wallet","Nomor rekening"],wise:[0,"Account holder name","Wise email or ID"],trc20:[0,0,"Wallet address (TRC20)"],erc20:[0,0,"Wallet address (ERC20)"]};
+const wlLast4=d=>d.number?"•••• "+String(d.number).slice(-4):(d.bank||d.holder||"Bound");
 function pmList(){const p=profile.payout||{},m={...(p.m||{})};if(p.number&&!m.bank)m.bank={bank:p.bank,holder:p.holder,number:p.number};return m}
 async function wlHash(x){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("velora:"+x));return Array.from(new Uint8Array(b)).map(v=>v.toString(16).padStart(2,"0")).join("")}catch(e){return"p:"+x}}
 async function wlTx(){try{return(await getDocs(query(collection(db,"transactions"),where("uid","==",me.uid)))).docs.map(d=>({id:d.id,...d.data()})).sort(byNew)}catch(x){return[]}}
@@ -2837,17 +2839,19 @@ function fillWallet(){
 let bindK=null;
 function openBind(k){
   bindK=k;const d=pmList()[k]||{},f=PMF[k];
-  $("#bnt").textContent=(d.number?"Edit ":"Bind ")+PMN[k];
+  $("#bnt").textContent=(Object.keys(d).length?"Edit ":"Bind ")+PMN[k];
   [0,1,2].forEach(i=>{const w=$("#bk"+i).parentNode;w.hidden=!f[i];if(f[i]){w.querySelector("label").textContent=f[i];$("#bk"+i).value=[d.bank,d.holder,d.number][i]||""}});
+  $("#bktw").hidden=k!=="bank";$("#bkt").value=d.type||"";
   $("#bnerr").textContent="";$("#bindsheet").hidden=false;
 }
 document.querySelectorAll("#v-wallet .pm button").forEach(b=>b.onclick=()=>openBind(b.closest(".pm").dataset.m));
 $("#bnbd").onclick=$("#bnx").onclick=()=>{$("#bindsheet").hidden=true};
 $("#bnsave").onclick=async()=>{
   const f=PMF[bindK],v=[0,1,2].map(i=>$("#bk"+i).value.trim()),d={};
+  if(bindK==="bank"&&!$("#bkt").value)return say("#bnerr","Pilih Bank atau Wallet.");
   if(f.some((x,i)=>x&&!v[i]))return say("#bnerr","Please fill in all fields.");
-  if(f[0])d.bank=v[0];if(f[1])d.holder=v[1];d.number=v[2].replace(/\s/g,"");
-  if(bindK==="bank"&&!/^\d{6,25}$/.test(d.number))return say("#bnerr","Account number must be 6–25 digits.");
+  if(bindK==="bank")d.type=$("#bkt").value;
+  if(f[0])d.bank=v[0];if(f[1])d.holder=v[1];if(f[2])d.number=v[2].replace(/\s/g,"");
   try{
     const p={...(profile.payout||{})};p.m={...pmList(),[bindK]:d};
     if(bindK==="bank"){p.bank=d.bank;p.holder=d.holder;p.number=d.number}
@@ -2876,7 +2880,7 @@ $("#xsend").onclick=async()=>{
     if(!p.wpass){const np={...p,wpass:h};await updateDoc(doc(db,"users",me.uid),{payout:np});profile.payout=np}
   }catch(x){return say("#xerr",msg(x))}
   $("#xpass").value="";
-  newTx("withdraw","#xamt","#xerr",{method:k,bank:m.bank||PMN[k],holder:m.holder||"",number:m.number});
+  newTx("withdraw","#xamt","#xerr",{method:k,bank:m.bank||PMN[k],holder:m.holder||"",number:m.number||"",type:m.type||""});
 };
 /* ---------- History: booking, commission, top up, withdraw ---------- */
 const HXI={
@@ -2993,7 +2997,7 @@ async function loadTx(){
   if(!isAdmin())return;
   try{
     const l=(await getDocs(collection(db,"transactions"))).docs.map(d=>({id:d.id,...d.data()})).sort(byNew);
-    $("#atx").innerHTML=l.length?l.map(t=>`<div class="card pad"><div class="row" style="margin:0"><h3>${TL[t.type]} ${money(t.amount)}</h3><span class="st">${esc(stl(t.status))}</span></div><p class="mut">${esc(t.name)} (@${esc(t.userid)}) · ${fmt(t.created)}</p>${t.type==="withdraw"?`<p class="mut">${esc(t.bank)} · ${esc(t.holder)} · ${esc(t.number)}</p>`:""}${t.status==="Menunggu"?`<div class="row"><button class="btn" data-tx="1" data-txid="${t.id}">Approve</button><button class="btn r" data-tx="0" data-txid="${t.id}">Reject</button></div>`:""}</div>`).join(""):'<p class="mut">No requests yet.</p>';
+    $("#atx").innerHTML=l.length?l.map(t=>`<div class="card pad"><div class="row" style="margin:0"><h3>${TL[t.type]} ${money(t.amount)}</h3><span class="st">${esc(stl(t.status))}</span></div><p class="mut">${esc(t.name)} (@${esc(t.userid)}) · ${fmt(t.created)}</p>${t.type==="withdraw"?`<p class="mut">${t.type?esc(t.type)+" · ":""}${esc(t.bank)} · ${esc(t.holder)} · ${esc(t.number)}</p>`:""}${t.status==="Menunggu"?`<div class="row"><button class="btn" data-tx="1" data-txid="${t.id}">Approve</button><button class="btn r" data-tx="0" data-txid="${t.id}">Reject</button></div>`:""}</div>`).join(""):'<p class="mut">No requests yet.</p>';
   }catch(x){$("#atx").innerHTML='<p class="err">'+esc(msg(x))+'</p>'}
 }
 async function decide(id,ok){
