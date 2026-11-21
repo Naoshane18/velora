@@ -2369,11 +2369,26 @@ $("#bsend").onclick=async()=>{
     await loadFsPemesanan();
     if(activePemesanan(cur.id)){$("#berr").textContent="You already booked this hotel. Please wait for admin, or choose another hotel.";return}
     await refundDue();
-    const bid=bkId(cur.id),wb=writeBatch(db);
-    wb.set(doc(db,"bookings",bid),{uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,malam:n,total:price,status:"Menunggu",created:Date.now(),held:true,refunded:false});
-    /* Saldo dipotong sebesar total booking; kembali otomatis setelah tanggal check-out */
-    wb.update(doc(db,"accounts",me.uid),{available:increment(-price),bkRef:bid,cCount:increment(1)});
-    await wb.commit();
+    const bid=bkId(cur.id),now=Date.now();
+    const base={uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,malam:n,total:price,created:now,held:true,refunded:false};
+    /* Auto-accept: saldo tersedia cukup (sudah dicek di atas) -> booking langsung Dikonfirmasi tanpa menunggu admin.
+       Field sama seperti saat admin menekan Konfirmasi: komisi masuk Today's Komisi, dibayar saat pergantian hari. */
+    const autoCom=+(price*commissionRate()).toFixed(2);
+    const autoBk={...base,status:"Dikonfirmasi",confirmedAt:now,daily:true,settled:false,commission:autoCom,commissionPaid:false,autoAccepted:true};
+    const commitBk=async data=>{
+      const wb=writeBatch(db);
+      wb.set(doc(db,"bookings",bid),data);
+      /* Saldo dipotong sebesar total booking; kembali otomatis setelah tanggal check-out */
+      wb.update(doc(db,"accounts",me.uid),{available:increment(-price),bkRef:bid,cCount:increment(1)});
+      await wb.commit();
+    };
+    try{await commitBk(autoBk)}
+    catch(autoErr){
+      /* Cadangan: jika Firestore rules belum mengizinkan user membuat booking berstatus Dikonfirmasi,
+         simpan sebagai Menunggu (alur lama, perlu konfirmasi admin). */
+      console.warn("Auto-accept ditolak, booking disimpan sebagai Menunggu",autoErr);
+      await commitBk({...base,status:"Menunggu"});
+    }
     myAcc.available=(Number(myAcc.available)||0)-price;await loadAccount();
     await loadFsPemesanan();renderHotel();
     $("#dlg").close();nav("orders");
