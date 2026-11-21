@@ -2370,7 +2370,7 @@ $("#bsend").onclick=async()=>{
     if(activePemesanan(cur.id)){$("#berr").textContent="You already booked this hotel. Please wait for admin, or choose another hotel.";return}
     await refundDue();
     const bid=bkId(cur.id),now=Date.now();
-    const base={uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,malam:n,total:price,created:now,held:true,refunded:false};
+    const base={uid:me.uid,userid:profile.userid||"",name:profile.name||"",hotelId:String(cur.id),hotelName:cur.name||"",checkin:$("#ci").value,checkout:$("#co").value,nights:n,malam:n,total:price,created:now,held:true,refunded:false};
     /* Auto-accept: saldo tersedia cukup (sudah dicek di atas) -> booking langsung Dikonfirmasi tanpa menunggu admin.
        Field sama seperti saat admin menekan Konfirmasi: komisi masuk Today's Komisi, dibayar saat pergantian hari. */
     const autoCom=+(price*commissionRate()).toFixed(2);
