@@ -1725,7 +1725,7 @@ function refundDue(){
           await wb.commit();b.refunded=true;b.refundedAt=Date.now();n++;
         }catch(x){console.warn("Refund failed",b.id,x)}
       }
-      /* Penutupan harian: Order Amount + Today's Komisi hari sebelumnya masuk ke Tersedia Balance */
+      /* Saat check-out (00:00 WIB): Order Amount + komisi masuk ke Tersedia Balance */
       for(const b of dueSettle(FsBk)){if(await settleUserSide(b))n++}
     }catch(x){console.warn("Refund check failed",x)}
     return n;
@@ -1745,8 +1745,8 @@ function nextNyMidmalam(n){let t=(dayNo(n)+1)*864e5+4*3600e3;if(dayNo(t)<=dayNo(
 function bkDay(b){return dayNo(b.confirmedAt||b.created||0)}
 function bkCom(b){return +(Number(b.commission)||0).toFixed(2)}
 function bkHeld(b){return b.held===true&&b.refunded!==true}
-/* Tanggal check-out sudah tiba (tanggal New York, America/New_York, ikut DST) */
-function localToday(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now()))}
+/* Tanggal check-out sudah tiba (tanggal WIB, Asia/Jakarta, UTC+7) - sama dengan Firestore rules */
+function localToday(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Jakarta",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now()))}
 function coDue(b){return !!(b&&b.checkout)&&localToday()>=String(b.checkout)}
 /* Pesanan Amount = total harga booking yang saldonya masih ditahan (belum check-out & tidak dibatalkan).
    Tidak di-reset harian; berkurang otomatis saat tanggal check-out tiba (uang masuk ke Tersedia Balance). */
@@ -1754,12 +1754,16 @@ function heldList(list){return (list||[]).filter(b=>bkHeld(b)&&b.status!=="Dibat
 function heldAmt(list){return +heldList(list).reduce((s,b)=>s+(Number(b.total)||0),0).toFixed(2)}
 function isDaily(b){return !!b&&b.daily===true&&b.status==="Dikonfirmasi"&&b.settled!==true}
 function todayDaily(list){const t=dayNo(Date.now());return (list||[]).filter(b=>isDaily(b)&&bkDay(b)===t)}
-function dueSettle(list){const t=dayNo(Date.now());return (list||[]).filter(b=>isDaily(b)&&bkDay(b)<t)}
+/* Komisi + Order Amount baru masuk Tersedia Balance setelah tanggal check-out tiba (00:00 WIB) */
+function dueSettle(list){return (list||[]).filter(b=>isDaily(b)&&coDue(b))}
+/* Komisi yang masih ditahan (booking di-approve, belum check-out) */
+function pendingCom(list){return +(list||[]).filter(b=>isDaily(b)&&!coDue(b)&&b.commissionPaid!==true).reduce((s,b)=>s+bkCom(b),0).toFixed(2)}
+function nextWibMidmalam(n){const D=864e5,W=7*3600e3;return (Math.floor((n+W)/D)+1)*D-W}
 function settleAmt(b){return (bkHeld(b)&&coDue(b)?Number(b.total)||0:0)+(b.commissionPaid===true?0:(Number(b.commission)||0))}
 function unsettledSebelumnya(list){return +dueSettle(list).reduce((s,b)=>s+settleAmt(b),0).toFixed(2)}
 async function settleOne(b){
   const amt=settleAmt(b),now=Date.now(),wb=writeBatch(db);
-  /* Pergantian hari: komisi masuk Tersedia Balance. Harga booking baru dikembalikan saat tanggal check-out tiba. */
+  /* Tanggal check-out tiba (00:00 WIB): komisi + harga booking masuk Tersedia Balance. */
   const rel=bkHeld(b)&&coDue(b),upd={settled:true,settledAt:now,commissionPaid:true};
   if(rel){upd.refunded=true;upd.refundedAt=b.refundedAt||now}
   wb.update(doc(db,"bookings",b.id),upd);
@@ -1780,7 +1784,7 @@ async function adminSettleSemua(list){
 }
 /* Saat lewat tengah malam dan Dasbor sedang terbuka, hitung ulang otomatis */
 (function midmalamTick(){
-  const n=Date.now(),next=nextNyMidmalam(n)+5000;
+  const n=Date.now(),next=Math.min(nextNyMidmalam(n),nextWibMidmalam(n))+5000;
   setTimeout(()=>{try{if(me&&!$("#v-dashboard").hidden)loadDasbor();else if(me&&!isAdmin())loadAccount()}catch(e){}midmalamTick()},Math.max(1000,next-n));
 })();
 async function loadAccount(){
@@ -1792,7 +1796,7 @@ async function loadAccount(){
   /* Profil & Dompet: Pesanan Amount = booking di-approve hari ini (jam New York),
      Total Account Balance = Tersedia Balance + Pesanan Amount + Today's Komisi */
   let dayOrd=0,dayCom=0;
-  if(!isAdmin()){const td=todayDaily(FsBk);dayOrd=heldAmt(FsBk);dayCom=td.reduce((s,b)=>s+bkCom(b),0)}
+  if(!isAdmin()){dayOrd=heldAmt(FsBk);dayCom=pendingCom(FsBk)}
   else{dayOrd=Number(a.orders)||0}
   const totalBal=isAdmin()?(Number(a.total)||0):+((Number(a.available)||0)+dayOrd+dayCom).toFixed(2);
   const shown=(profile.name&&profile.name.trim())||profile.userid||me.email;
@@ -2333,7 +2337,7 @@ function bookingBalanceMessage(price,balance){
    Contoh: check-in 15, check-out 17 -> tanggal 15-16 tombol "Sudah dipesan", mulai tanggal 17 bisa booking lagi. */
 const bkId=hid=>me.uid+"_"+String(hid).replace(/[\/]/g,"-")+"_"+Date.now();
 function activePemesanan(hid){
- const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now())); /* tanggal New York */
+ const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Jakarta",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Date.now())); /* tanggal WIB (check-out) */
  return (FsBk||[]).find(b=>String(b.hotelId)===String(hid)&&b.status!=="Dibatalkan"&&(!b.checkout||today<String(b.checkout)));
 }
 const isoDay=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
