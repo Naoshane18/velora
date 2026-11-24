@@ -1044,6 +1044,10 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         <div><label for="ap1"></label><input id="ap1" autocomplete="off"></div>
         <div><label for="ap2"></label><input id="ap2" autocomplete="off"></div>
         <p class="mut" style="font-size:13px;margin:6px 0 0">Kosongkan semua kolom metode ini untuk menghapusnya (user bisa bind ulang).</p>
+        <h3 style="margin:18px 0 8px">Kata Sandi Login</h3>
+        <label for="apw">Kata sandi baru (min. 6 karakter) · Khusus admin</label><input id="apw" type="text" minlength="6" autocomplete="new-password">
+        <div class="row" style="margin-top:8px"><button type="button" class="btn" id="apwsave">Ubah Kata Sandi</button></div>
+        <p class="err" id="apwmsg"></p>
         <div class="row"><button class="btn" id="accsave">Simpan Akun</button><button class="btn g" id="acccancel">Batal</button></div>
         <p class="err" id="accerr"></p>
       </div>
@@ -1533,6 +1537,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
 import {getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,deleteUser} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+import {getFunctions,httpsCallable} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-functions.js";
 import {getFirestore,doc,getDoc,setDoc,addDoc,updateDoc,deleteDoc,collection,getDocs,query,where,increment,writeBatch,onSnapshot} from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
 
 const ADMIN="stefanusap.1801@gmail.com";
@@ -1545,6 +1550,7 @@ const app=initializeApp({
   appId:"1:1041495207460:web:de8b0a66f268833c6032b1"
 });
 const auth=getAuth(app),db=getFirestore(app);
+const adminSetPassword=httpsCallable(getFunctions(app,"asia-southeast2"),"adminSetPassword");
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const IDR_RATE=16700;
@@ -2758,6 +2764,17 @@ async function loadUsers(){
       return `<div class="card pad"><h3>${esc(u.name)} <small class="mut">(@${esc(u.userid)})</small></h3><p class="mut">${esc(a.level||"Belum ada paket yet")} · Total ${money(a.total)} · Tersedia ${money(a.available)} · Pesanan ${money(a.orders)} · Pemesanan used ${Number(a.cCount)||0}</p><div class="row"><button class="btn g" data-acc="${u.uid}">Ubah account</button></div></div>`}).join(""):'<p class="mut">Belum ada pengguna.</p>';
   }catch(x){$("#aulist").innerHTML='<p class="err">'+esc(msg(x))+'</p>'}
 }
+/* ---------- Admin: ubah kata sandi login pengunjung ---------- */
+$("#apwsave").onclick=async()=>{
+  if(!isAdmin()||!accUid)return;
+  const pw=$("#apw").value,u=users.find(x=>x.uid===accUid)||{},b=$("#apwsave");
+  if(pw.length<6)return say("#apwmsg","Kata sandi minimal 6 karakter.");
+  if(!confirm("Ubah kata sandi login @"+(u.userid||"")+"?"))return;
+  b.disabled=true;say("#apwmsg","Menyimpan...",1);
+  try{await adminSetPassword({uid:accUid,password:pw});$("#apw").value="";say("#apwmsg","Kata sandi @"+(u.userid||"")+" berhasil diubah.",1)}
+  catch(x){say("#apwmsg",x.code==="functions/not-found"||x.code==="functions/internal"?"Fungsi server belum dipasang (adminSetPassword).":(x.message||msg(x)))}
+  finally{b.disabled=false}
+};
 $("#acntreset").onclick=()=>{$("#acnt").value=0};
 $("#acccancel").onclick=()=>{accUid=null;$("#accform").hidden=true};
 $("#accsave").onclick=async()=>{
@@ -3286,7 +3303,7 @@ document.addEventListener("click",async e=>{
       if(hit)sel.value=hit.value;else if(lvl){const o=document.createElement("option");o.value=lvl;o.textContent=lvl+" (not in pricing)";o.dataset.legacy="1";sel.appendChild(o);sel.value=lvl}else sel.value=""}
     accPay={m:pmOf(u.payout)};$("#apm").value="bank";apLoad();
     $("#atot").value=Math.round((Number(a.total)||0)*IDR_RATE);$("#aav").value=Math.round((Number(a.available)||0)*IDR_RATE);$("#aor").value=Math.round((Number(a.orders)||0)*IDR_RATE);$("#acnt").value=Number(a.cCount)||0;
-    $("#accerr").textContent="";$("#accform").hidden=false;$("#accform").scrollIntoView({behavior:"smooth"});
+    $("#apw").value="";$("#apwmsg").textContent="";$("#accerr").textContent="";$("#accform").hidden=false;$("#accform").scrollIntoView({behavior:"smooth"});
   }
   if(t.dataset.del&&confirm("Hapus this hotel?")){try{const id=t.dataset.del;
       /* Hotel buatan admin (ada di database saja) dihapus permanen.
