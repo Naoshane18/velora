@@ -1127,10 +1127,10 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         <div class="me-slide" id="booknow" data-slide-to-book><span class="me-slide__fill" aria-hidden="true"></span><span class="me-slide__label" aria-hidden="true">Pesan Sekarang</span><input type="range" class="me-slide__input" id="bookslide" min="0" max="100" step="1" value="0" aria-label="Pesan Sekarang"></div>
       </div>
       <div class="dstats me-kpis">
-        <div class="st g lx-kpi"><small class="lx-kpi__label">KOMISI HARI INI</small><b class="lx-kpi__value is-pos" id="dearn">+$0.00</b></div>
-        <div class="st lx-kpi"><small class="lx-kpi__label">TOTAL PESANAN</small><b class="lx-kpi__value" id="dord">$0.00</b></div>
+        <div class="st g lx-kpi"><small class="lx-kpi__label">KOMISI HARI INI</small><b class="lx-kpi__value is-pos" id="dearn">+Rp 0</b></div>
+        <div class="st lx-kpi"><small class="lx-kpi__label">TOTAL PESANAN</small><b class="lx-kpi__value" id="dord">Rp 0</b></div>
         <div class="st lx-kpi"><small class="lx-kpi__label">BOOKINGS</small><b class="lx-kpi__value" id="dcomp">0</b></div>
-        <button type="button" class="st lx-kpi lx-kpi--link" data-go="wallet"><small class="lx-kpi__label">SALDO TERSEDIA</small><b class="lx-kpi__value" id="dbal">$0.00</b></button>
+        <button type="button" class="st lx-kpi lx-kpi--link" data-go="wallet"><small class="lx-kpi__label">SALDO TERSEDIA</small><b class="lx-kpi__value" id="dbal">Rp 0</b></button>
       </div>
       <div class="card dlevels-list">
         <div class="mcl-title">TINGKAT KOMISI MITRA</div><p class="mut" style="margin:-14px 0 18px;font-size:13px">Perhitungan: harga kamar × persentase tingkat yang dipilih. Ini merupakan estimasi, bukan jaminan pembayaran.</p>
@@ -1221,7 +1221,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
     <section id="v-wallet" hidden>
       <div class="wl-hero">
         <div class="wl-top"><small>SALDO TERSEDIA</small><button type="button" data-go="history" aria-label="Riwayat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button></div>
-        <div class="wl-bal" id="wavail">$0.00</div>
+        <div class="wl-bal" id="wavail">Rp 0</div>
         <div class="wl-act"><button type="button" class="btn" data-go="addfunds"><span aria-hidden="true">+ </span><span>ISI SALDO</span></button><button type="button" class="btn g" data-go="withdraw"><span aria-hidden="true">&minus; </span><span>TARIK DANA</span></button></div>
       </div>
       <div class="card pad wl-card">
@@ -1237,19 +1237,19 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
       <button type="button" class="sh-bd" data-go="wallet" aria-label="Close"></button>
       <div class="sh-box"><i class="sh-grip"></i><button type="button" class="sh-x" data-go="wallet" aria-label="Close">&times;</button>
         <h3>Tambah Saldo Dompet</h3><p class="mut">Pilih jumlah saldo yang ingin ditambahkan</p>
-        <div class="amts"><button type="button" class="amt" data-a="100">$100</button><button type="button" class="amt" data-a="300">$300</button><button type="button" class="amt" data-a="600">$600</button><button type="button" class="amt" data-a="1000">$1,000</button><button type="button" class="amt" data-a="3000">$3,000</button></div>
-        <label for="famt">Jumlah (Rp)</label><input id="famt" type="number" min="0" step="any" inputmode="decimal" placeholder="0.00">
+        <div class="amts"><button type="button" class="amt" data-a="100000">Rp 100.000</button><button type="button" class="amt" data-a="500000">Rp 500.000</button><button type="button" class="amt" data-a="1000000">Rp 1.000.000</button><button type="button" class="amt" data-a="5000000">Rp 5.000.000</button><button type="button" class="amt" data-a="10000000">Rp 10.000.000</button></div>
+        <label for="famt">Jumlah (Rp)</label><input id="famt" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
         <button type="button" class="btn w" id="fsend">PROCEED &rarr;</button><p class="err" id="ferr"></p>
       </div>
     </section>
     <section id="v-withdraw" class="sheet" hidden>
       <button type="button" class="sh-bd" data-go="wallet" aria-label="Close"></button>
       <div class="sh-box"><i class="sh-grip"></i><button type="button" class="sh-x" data-go="wallet" aria-label="Close">&times;</button>
-        <h3>Tarik Dana</h3><p class="mut">Tersedia: <b id="xavail">$0.00</b></p>
-        <label for="xamt">Jumlah (Rp)</label><input id="xamt" type="number" min="0" step="any" inputmode="decimal" placeholder="0.00">
+        <h3>Tarik Dana</h3><p class="mut">Tersedia: <b id="xavail">Rp 0</b></p>
+        <label for="xamt">Jumlah (Rp)</label><input id="xamt" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
         <label for="xacc">Rekening Tujuan</label><select id="xacc"><option value="">Pilih rekening</option></select>
         <label for="xpass">Kata Sandi Penarikan</label><input id="xpass" type="password" autocomplete="off">
-        <div class="wl-note">Arrival in 15-20 mins. Contact Bantuan if delayed.</div>
+        <div class="wl-note">Dana masuk dalam 15–20 menit. Hubungi Bantuan jika terlambat.</div>
         <button type="button" class="btn w" id="xsend">TARIK SEKARANG</button><p class="err" id="xerr"></p>
       </div>
     </section>
@@ -1319,7 +1319,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
     <section id="v-editprofile" hidden>
       <div class="ph">
         <div class="who"><div class="pa" id="epav"></div><div><h3 id="epname"></h3><div class="em" id="eemail"></div></div></div>
-        <div class="bb"><div><b id="ebal">$0.00</b><span>Tersedia</span></div><div><b id="eearn">$0.00</b><span>Total Saldo</span></div></div>
+        <div class="bb"><div><b id="ebal">Rp 0</b><span>Tersedia</span></div><div><b id="eearn">Rp 0</b><span>Total Saldo</span></div></div>
       </div>
       <div class="card pad"><div class="cap">INFORMASI AKUN</div>
         <div class="ir"><span>User ID</span><b id="euid"></b></div>
@@ -1466,7 +1466,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
   document.querySelectorAll("nav a").forEach(function(a){a.classList.toggle("on",a.dataset.v===(M[v]||v))});
   document.querySelectorAll(".adm").forEach(function(e){e.hidden=!c.adm});document.querySelectorAll(".vis").forEach(function(e){e.hidden=!!c.adm});
   var t=function(i,x){var e=g(i);if(e&&x!=null)e.textContent=x};
-  var m=function(n){return Number(n||0).toLocaleString("en-US",{style:"currency",currency:"USD"})};
+  var m=function(n){return "Rp\u00a0"+Math.round((Number(n)||0)*16700).toLocaleString("id-ID")};
   if(c.n){t("pname",c.n);t("pav",String(c.n).charAt(0).toUpperCase());
     t("plevel",c.l||"Belum ada paket yet");t("ptotal",m(c.t));t("pavail",m(c.a));t("porders",m(c.o));
     t("dbal",m(c.a));t("dord",m(c.o));t("wtotal",m(c.t));t("wavail",m(c.a));t("xavail",m(c.a))}
@@ -1514,7 +1514,7 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
   <div class="bflow-card bflow-prov">
     <h3>Pilih Penyedia Pemesanan</h3>
     <p class="sub">Choose one sample channel to complete this local order.</p>
-    <div class="bref"><small>REFERENSI HARGA KAMAR</small><b id="bp-refund">$0.00</b></div>
+    <div class="bref"><small>REFERENSI HARGA KAMAR</small><b id="bp-refund">Rp 0</b></div>
     <div id="bp-list"></div>
     <p id="bp-comm" style="text-align:center;color:#16a34a;font-weight:700;margin:12px 0 4px;min-height:22px"></p>
     <button class="btn w" id="bp-book" disabled>PESAN SEKARANG</button>
@@ -1757,16 +1757,16 @@ function coDue(b){return !!(b&&b.checkout)&&localToday()>=String(b.checkout)}
 /* Pesanan Amount = total harga booking yang saldonya masih ditahan (belum check-out & tidak dibatalkan).
    Tidak di-reset harian; berkurang otomatis saat tanggal check-out tiba (uang masuk ke Tersedia Balance). */
 function heldList(list){return (list||[]).filter(b=>bkHeld(b)&&b.status!=="Dibatalkan"&&!coDue(b))}
-function heldAmt(list){return +heldList(list).reduce((s,b)=>s+(Number(b.total)||0),0).toFixed(2)}
+function heldAmt(list){return +heldList(list).reduce((s,b)=>s+(Number(b.total)||0),0).toFixed(6)}
 function isDaily(b){return !!b&&b.daily===true&&b.status==="Dikonfirmasi"&&b.settled!==true}
 function todayDaily(list){const t=dayNo(Date.now());return (list||[]).filter(b=>isDaily(b)&&bkDay(b)===t)}
 /* Komisi + Order Amount baru masuk Tersedia Balance setelah tanggal check-out tiba (00:00 WIB) */
 function dueSettle(list){return (list||[]).filter(b=>isDaily(b)&&coDue(b))}
 /* Komisi yang masih ditahan (booking di-approve, belum check-out) */
-function pendingCom(list){return +(list||[]).filter(b=>isDaily(b)&&!coDue(b)&&b.commissionPaid!==true).reduce((s,b)=>s+bkCom(b),0).toFixed(2)}
+function pendingCom(list){return +(list||[]).filter(b=>isDaily(b)&&!coDue(b)&&b.commissionPaid!==true).reduce((s,b)=>s+bkCom(b),0).toFixed(6)}
 function nextWibMidmalam(n){const D=864e5,W=7*3600e3;return (Math.floor((n+W)/D)+1)*D-W}
 function settleAmt(b){return (bkHeld(b)&&coDue(b)?Number(b.total)||0:0)+(b.commissionPaid===true?0:(Number(b.commission)||0))}
-function unsettledSebelumnya(list){return +dueSettle(list).reduce((s,b)=>s+settleAmt(b),0).toFixed(2)}
+function unsettledSebelumnya(list){return +dueSettle(list).reduce((s,b)=>s+settleAmt(b),0).toFixed(6)}
 async function settleOne(b){
   const amt=settleAmt(b),now=Date.now(),wb=writeBatch(db);
   /* Tanggal check-out tiba (00:00 WIB): komisi + harga booking masuk Tersedia Balance. */
@@ -1797,14 +1797,14 @@ async function loadAccount(){
   if(!isAdmin())await refundDue();
   let a=NOACC;
   try{const d=await getDoc(doc(db,"accounts",me.uid));if(d.exists())a={...NOACC,...d.data()}}catch(x){}
-  if(!isAdmin()){const extra=unsettledSebelumnya(FsBk);if(extra>0)a={...a,available:+((Number(a.available)||0)+extra).toFixed(2)}}
+  if(!isAdmin()){const extra=unsettledSebelumnya(FsBk);if(extra>0)a={...a,available:+((Number(a.available)||0)+extra).toFixed(6)}}
   myAcc=a;
   /* Profil & Dompet: Pesanan Amount = booking di-approve hari ini (jam New York),
      Total Account Balance = Tersedia Balance + Pesanan Amount + Today's Komisi */
   let dayOrd=0,dayCom=0;
   if(!isAdmin()){dayOrd=heldAmt(FsBk);dayCom=pendingCom(FsBk)}
   else{dayOrd=Number(a.orders)||0}
-  const totalBal=isAdmin()?(Number(a.total)||0):+((Number(a.available)||0)+dayOrd+dayCom).toFixed(2);
+  const totalBal=isAdmin()?(Number(a.total)||0):+((Number(a.available)||0)+dayOrd+dayCom).toFixed(6);
   const shown=(profile.name&&profile.name.trim())||profile.userid||me.email;
   $("#pname").textContent=shown;
   $("#pav").textContent=String(shown||"?").charAt(0).toUpperCase();
@@ -2882,7 +2882,7 @@ async function runPesanFlow(){
   let balance;
   try{balance=await freshPemesananBalance()}
   catch(x){alert("Saldo tidak dapat diverifikasi: "+msg(x));return}
-  if(balance<=0){alert("Tersedia Balance Anda $0.00. Hubungi admin sebelum booking.");return}
+  if(balance<=0){alert("Saldo Tersedia Anda Rp 0. Hubungi admin sebelum booking.");return}
   const badge=$("#dbadge");
   if(badge&&badge.classList.contains("full")){alert("Daily booking limit reached.");return}
   bflow.busy=true;
@@ -3016,7 +3016,7 @@ const _bpPesan=$("#bp-book");if(_bpPesan)_bpPesan.onclick=async()=>{
          maks. saldo x rate level per booking dan maks. kapasitas booking level per hari. */
       const ref=doc(db,"accounts",me.uid),snap=await getDoc(ref),a=snap.exists()?snap.data():{};
       const day=Math.floor(Date.now()/864e5),cnt=(a.cDay===day?Number(a.cCount)||0:0)+1;
-      const newBal=+((Number(a.available)||0)+order.commission).toFixed(2);
+      const newBal=+((Number(a.available)||0)+order.commission).toFixed(6);
       await updateDoc(ref,{available:newBal,cDay:day,cCount:cnt});
       myAcc.available=newBal;
     }catch(balanceError){console.warn("Komisi balance update failed",balanceError);alert("Komisi could not be added to Anda balance: "+msg(balanceError))}
@@ -3093,24 +3093,24 @@ $("#bnsave").onclick=async()=>{
   }catch(x){say("#bnerr",msg(x))}
 };
 async function newTx(type,amtSel,errSel,extra={}){
-  const amount=num(amtSel);
-  if(!(amount>0))return say(errSel,"Enter a valid amount.");
+  const rp=Math.round(num(amtSel)),amount=rp/IDR_RATE;
+  if(!(rp>0))return say(errSel,"Masukkan jumlah yang valid.");
   try{
     await addDoc(collection(db,"transactions"),{uid:me.uid,userid:profile.userid,name:profile.name,type,amount,status:"Menunggu",created:Date.now(),...extra});
-    $(amtSel).value="";say(errSel,"Request sent. Waiting for admin approval.",1);fillDompet();
+    $(amtSel).value="";say(errSel,"Permintaan terkirim. Menunggu persetujuan admin.",1);fillDompet();
   }catch(x){say(errSel,msg(x))}
 }
 document.querySelectorAll("#v-addfunds .amt").forEach(b=>b.onclick=()=>{$("#famt").value=b.dataset.a;document.querySelectorAll("#v-addfunds .amt").forEach(x=>x.classList.toggle("on",x===b))});
 $("#fsend").onclick=()=>newTx("deposit","#famt","#ferr");
 $("#xsend").onclick=async()=>{
-  const k=$("#xacc").value,m=pmList()[k],a=num("#xamt"),pw=$("#xpass").value;
-  if(!(a>0))return say("#xerr","Enter a valid amount.");
-  if(a>myAcc.available)return say("#xerr","Exceeds available balance.");
-  if(!m)return say("#xerr","Select a payout account (bind one in Dompet first).");
-  if(pw.length<4)return say("#xerr","Enter Anda withdraw password (min. 4 characters).");
+  const k=$("#xacc").value,m=pmList()[k],a=Math.round(num("#xamt")),pw=$("#xpass").value;
+  if(!(a>0))return say("#xerr","Masukkan jumlah yang valid.");
+  if(a>Math.floor((Number(myAcc.available)||0)*IDR_RATE+1e-6))return say("#xerr","Jumlah melebihi saldo tersedia.");
+  if(!m)return say("#xerr","Pilih rekening tujuan (hubungkan dulu di Dompet).");
+  if(pw.length<4)return say("#xerr","Masukkan kata sandi penarikan (min. 4 karakter).");
   const h=await wlHash(pw),p=profile.payout||{};
   try{
-    if(p.wpass&&p.wpass!==h)return say("#xerr","Incorrect withdraw password.");
+    if(p.wpass&&p.wpass!==h)return say("#xerr","Kata sandi penarikan salah.");
     if(!p.wpass){const np={...p,wpass:h};await updateDoc(doc(db,"users",me.uid),{payout:np});profile.payout=np}
   }catch(x){return say("#xerr",msg(x))}
   $("#xpass").value="";
