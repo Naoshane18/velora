@@ -1048,6 +1048,10 @@ select{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:10px
         <label for="apw">Kata sandi baru (min. 6 karakter) · Khusus admin</label><input id="apw" type="text" minlength="6" autocomplete="new-password">
         <div class="row" style="margin-top:8px"><button type="button" class="btn" id="apwsave">Ubah Kata Sandi</button></div>
         <p class="err" id="apwmsg"></p>
+        <h3 style="margin:18px 0 8px;color:#b42318">Hapus Akun</h3>
+        <p class="mut" style="font-size:13px;margin:0">Menghapus akun pengunjung ini secara permanen beserta saldo, pesanan, transaksi, dan pesan bantuannya. Tindakan ini tidak bisa dibatalkan.</p>
+        <div class="row" style="margin-top:8px"><button type="button" class="btn r" id="accdel">Hapus Akun Ini</button></div>
+        <p class="err" id="accdelmsg"></p>
         <div class="row"><button class="btn" id="accsave">Simpan Akun</button><button class="btn g" id="acccancel">Batal</button></div>
         <p class="err" id="accerr"></p>
       </div>
@@ -1705,6 +1709,10 @@ async function enter(){try{await enter0()}finally{reveal()}}
 async function enter0(){
   const d=await getDoc(doc(db,"users",me.uid));
   profile=d.exists()?d.data():{name:me.email,userid:"-",email:me.email};
+  if(profile.deleted===true&&!isAdmin()){const du=me,un=String(profile.userid||"").toLowerCase();
+    try{if(un)await deleteDoc(doc(db,"usernames",un))}catch(e){}
+    try{await deleteDoc(doc(db,"users",du.uid))}catch(e){}
+    try{await deleteUser(du)}catch(e){try{await signOut(auth)}catch(_){}}setTimeout(()=>{const er=$("#aerr");if(er){er.style.color="";er.textContent="Akun ini telah dihapus oleh admin."}},300);return}
   await loadAccount();
   document.querySelectorAll(".adm").forEach(e=>e.hidden=!isAdmin());document.querySelectorAll(".vis").forEach(e=>e.hidden=isAdmin());
   show(savedView());loadHotel();
@@ -2758,10 +2766,10 @@ async function loadUsers(){
   if(!isAdmin())return;
   try{
     try{await adminSettleSemua((await getDocs(collection(db,"bookings"))).docs.map(d=>({id:d.id,...d.data()})))}catch(e){}
-    users=(await getDocs(collection(db,"users"))).docs.map(d=>({uid:d.id,...d.data()}));
+    users=(await getDocs(collection(db,"users"))).docs.map(d=>({uid:d.id,...d.data()})).filter(u=>u.deleted!==true);
     accs={};(await getDocs(collection(db,"accounts"))).docs.forEach(d=>accs[d.id]={...NOACC,...d.data()});
     $("#aulist").innerHTML=users.length?users.map(u=>{const a=accs[u.uid]||NOACC;
-      return `<div class="card pad"><h3>${esc(u.name)} <small class="mut">(@${esc(u.userid)})</small></h3><p class="mut">${esc(a.level||"Belum ada paket yet")} · Total ${money(a.total)} · Tersedia ${money(a.available)} · Pesanan ${money(a.orders)} · Pemesanan used ${Number(a.cCount)||0}</p><div class="row"><button class="btn g" data-acc="${u.uid}">Ubah account</button></div></div>`}).join(""):'<p class="mut">Belum ada pengguna.</p>';
+      return `<div class="card pad"><h3>${esc(u.name)} <small class="mut">(@${esc(u.userid)})</small></h3><p class="mut">${esc(a.level||"Belum ada paket yet")} · Total ${money(a.total)} · Tersedia ${money(a.available)} · Pesanan ${money(a.orders)} · Pemesanan used ${Number(a.cCount)||0}</p><div class="row"><button class="btn g" data-acc="${u.uid}">Ubah account</button><button class="btn r" data-accdel="${u.uid}">Hapus Akun</button></div></div>`}).join(""):'<p class="mut">Belum ada pengguna.</p>';
   }catch(x){$("#aulist").innerHTML='<p class="err">'+esc(msg(x))+'</p>'}
 }
 /* ---------- Admin: ubah kata sandi login pengunjung ---------- */
@@ -2775,6 +2783,31 @@ $("#apwsave").onclick=async()=>{
   catch(x){say("#apwmsg",x.code==="functions/not-found"||x.code==="functions/internal"?"Fungsi server belum dipasang (adminSetPassword).":(x.message||msg(x)))}
   finally{b.disabled=false}
 };
+/* ---------- Admin: hapus akun pengunjung ---------- */
+async function adminHapusAkun(uid){
+  if(!isAdmin()||!uid)return false;
+  const u=users.find(x=>x.uid===uid)||{},nm="@"+(u.userid||uid);
+  if(uid===me.uid||u.email===ADMIN)return alert("Akun admin tidak bisa dihapus."),false;
+  if(!confirm("Hapus akun "+nm+" ("+(u.name||"")+") secara PERMANEN?\n\nSaldo, pesanan, transaksi, dan pesan bantuannya ikut terhapus. Tindakan ini tidak bisa dibatalkan."))return false;
+  if(prompt("Ketik "+(u.userid||"HAPUS")+" untuk konfirmasi penghapusan:")!==(u.userid||"HAPUS"))return alert("Konfirmasi tidak cocok. Akun tidak dihapus."),false;
+  /* 1) Hapus data Firestore milik pengunjung (dibagi per 400 operasi) */
+  const refs=[doc(db,"accounts",uid)];
+  for(const c of ["bookings","transactions","messages"]){
+    try{(await getDocs(query(collection(db,c),where("uid","==",uid)))).docs.forEach(d=>refs.push(d.ref))}catch(e){}
+  }
+  for(let i=0;i<refs.length;i+=400){const wb=writeBatch(db);refs.slice(i,i+400).forEach(r=>wb.delete(r));await wb.commit()}
+  /* 2) Tandai profil sebagai dihapus agar login lama langsung ditolak */
+  await setDoc(doc(db,"users",uid),{deleted:true,deletedAt:Date.now(),userid:u.userid||"",name:u.name||"",email:u.email||""});
+  /* 3) Login Firebase-nya dihapus otomatis dari browser pengunjung itu sendiri
+        saat ia mencoba masuk lagi (lihat enter0). Tidak perlu fungsi server. */
+  if(accUid===uid){accUid=null;$("#accform").hidden=true}
+  alert("Akun "+nm+" berhasil dihapus. Pengunjung ini tidak bisa login lagi.");
+  return true;
+}
+document.addEventListener("click",async e=>{const t=e.target.closest("[data-accdel]");if(!t)return;
+  t.disabled=true;try{if(await adminHapusAkun(t.dataset.accdel))loadUsers()}catch(x){alert("Gagal menghapus akun: "+msg(x))}finally{t.disabled=false}});
+$("#accdel").onclick=async()=>{const b=$("#accdel");b.disabled=true;say("#accdelmsg","",1);
+  try{if(await adminHapusAkun(accUid))loadUsers()}catch(x){say("#accdelmsg","Gagal menghapus akun: "+msg(x))}finally{b.disabled=false}};
 $("#acntreset").onclick=()=>{$("#acnt").value=0};
 $("#acccancel").onclick=()=>{accUid=null;$("#accform").hidden=true};
 $("#accsave").onclick=async()=>{
